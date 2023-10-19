@@ -195,7 +195,7 @@ ensureSystemRequirements =
     version <-
       try (readProcessWithExitCode "check-jsonschema" ["--version"] mempty) >>= \case
         Right (exitCode, out, _) ->
-          pure (List.last (List.words out) <$ if exitCode == ExitSuccess then pure () else Left "")
+          pure (List.last (List.words out) <$ guard (exitCode == ExitSuccess))
         Left (err :: IOError)
           | ioeGetErrorType err == OtherError ->
               pure (Left "Make sure check-jsonschema is installed and in $PATH")

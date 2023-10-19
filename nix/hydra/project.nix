@@ -1,4 +1,4 @@
-{ compiler ? "ghc962"
+{ compiler ? "ghc928"
 
 , system ? builtins.currentSystem
 
