@@ -241,7 +241,7 @@ withTUITest region action = do
     as <- newIORef initialAssumedState
     -- NOTE(SN): The null device should allow using this in CI, while we do
     -- capture the output via `outputByteBuffer` anyway.
-    nullFd <- openFd "/dev/null" WriteOnly defaultFileFlags
+    nullFd <- openFd "/dev/null" WriteOnly Nothing defaultFileFlags
     realOut <- outputForConfig $ defaultConfig{outputFd = Just nullFd, termName = Just "xterm"}
     closeFd nullFd
     let output = testOut realOut as frameBuffer
