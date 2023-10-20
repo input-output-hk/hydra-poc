@@ -51,12 +51,7 @@ utxoProducedByTx tx =
 txFee' :: HasCallStack => Tx era -> Lovelace
 txFee' (getTxBody -> TxBody body) =
   case txFee body of
-    TxFeeExplicit TxFeesExplicitInShelleyEra fee -> fee
-    TxFeeExplicit TxFeesExplicitInAllegraEra fee -> fee
-    TxFeeExplicit TxFeesExplicitInMaryEra fee -> fee
-    TxFeeExplicit TxFeesExplicitInAlonzoEra fee -> fee
-    TxFeeExplicit TxFeesExplicitInBabbageEra fee -> fee
-    TxFeeExplicit TxFeesExplicitInConwayEra fee -> fee
+    TxFeeExplicit _ y -> y
     TxFeeImplicit _ -> error "impossible: TxFeeImplicit on non-Byron transaction."
 
 -- * Type Conversions
@@ -117,12 +112,12 @@ fromLedgerTx ledgerTx =
 
   scriptsData =
     TxBodyScriptData
-      ScriptDataInBabbageEra
+      AlonzoEraOnwardsAlonzo
       (Ledger.txdats' wits)
       (Ledger.txrdmrs' wits)
 
   validity = case isValid of
     Ledger.IsValid True ->
-      TxScriptValidity TxScriptValiditySupportedInBabbageEra ScriptValid
+      TxScriptValidity AlonzoEraOnwardsBabbage ScriptValid
     Ledger.IsValid False ->
-      TxScriptValidity TxScriptValiditySupportedInBabbageEra ScriptInvalid
+      TxScriptValidity AlonzoEraOnwardsBabbage ScriptInvalid

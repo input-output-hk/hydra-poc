@@ -5,7 +5,8 @@ module Hydra.Cardano.Api.ValidityInterval where
 import Hydra.Cardano.Api.Prelude
 
 import Cardano.Ledger.Allegra.Scripts qualified as Ledger
-import Cardano.Ledger.BaseTypes (StrictMaybe (..))
+import Cardano.Api.Eon.AllegraEraOnwards (AllegraEraOnwards(..))
+import Cardano.Ledger.BaseTypes (StrictMaybe (..) ,maybeToStrictMaybe)
 import Test.QuickCheck (oneof)
 
 toLedgerValidityInterval ::
@@ -20,7 +21,7 @@ toLedgerValidityInterval (lowerBound, upperBound) =
     , Ledger.invalidHereafter =
         case upperBound of
           TxValidityNoUpperBound _ -> SNothing
-          TxValidityUpperBound _ s -> SJust s
+          TxValidityUpperBound _ s -> maybeToStrictMaybe s
     }
 fromLedgerValidityInterval ::
   Ledger.ValidityInterval ->
@@ -31,20 +32,20 @@ fromLedgerValidityInterval validityInterval =
         SNothing -> TxValidityNoLowerBound
         SJust s -> TxValidityLowerBound ValidityLowerBoundInBabbageEra s
       upperBound = case invalidHereAfter of
-        SNothing -> TxValidityNoUpperBound ValidityNoUpperBoundInBabbageEra
-        SJust s -> TxValidityUpperBound ValidityUpperBoundInBabbageEra s
+        SNothing -> TxValidityNoUpperBound ByronEraOnlyByron
+        SJust s -> TxValidityUpperBound ShelleyBasedEraBabbage s
    in (lowerBound, upperBound)
 
 instance Arbitrary (TxValidityLowerBound Era) where
   arbitrary =
     oneof
       [ pure TxValidityNoLowerBound
-      , TxValidityLowerBound ValidityLowerBoundInBabbageEra . SlotNo <$> arbitrary
+      , TxValidityLowerBound _ . SlotNo <$> arbitrary
       ]
 
 instance Arbitrary (TxValidityUpperBound Era) where
   arbitrary =
     oneof
-      [ pure $ TxValidityNoUpperBound ValidityNoUpperBoundInBabbageEra
-      , TxValidityUpperBound ValidityUpperBoundInBabbageEra . SlotNo <$> arbitrary
+      [ pure $ TxValidityNoUpperBound _
+      , TxValidityUpperBound ShelleyBasedEraBabbage . SlotNo <$> arbitrary
       ]

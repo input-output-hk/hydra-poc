@@ -12,8 +12,8 @@ repository cardano-haskell-packages
 
 -- See CONTRIBUTING.md for information about when and how to update these.
 index-state:
-  , hackage.haskell.org 2023-10-20T06:54:18Z
-  , cardano-haskell-packages 2023-10-20T16:16:59Z
+  , hackage.haskell.org 2023-11-11T06:54:18Z
+  , cardano-haskell-packages 2023-11-11T16:16:59Z
 
 packages:
   hydra-prelude
@@ -46,3 +46,6 @@ test-show-details: direct
 -- Fix compilation of strict-containers (see also nix/hydra/project.nix)
 package strict-containers
   ghc-options: "-Wno-noncanonical-monad-instances"
+
+constraints:
+  nothunks == 0.1.4
