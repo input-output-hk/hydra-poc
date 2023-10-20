@@ -93,3 +93,37 @@ When contributing to this project and interacting with others, please follow our
 <p align="center">
 Thanks for visiting and enjoy :heart:!
 </p>
+
+## :sunrise_over_mountains: Horizon Haskell Example
+
+This is an example of using the
+[horizon-plutus](https://gitlab.horizon-haskell.net/package-sets/horizon-plutus)
+package set to provide a stable package set for hydra. This example should
+successfully build `hydra-prelude`.
+
+There is still a tiny bit of IFD at the margin, but it is not so overbearing
+that it causes the flake schema to fail. It is not possible to fully evaluate
+derivations on alternate systems, but the derivations can be shown to exist.
+Removal of the remaining IFD should not be difficult to do either.
+
+Most importantly, what is possible on this branch that was not previously is
+the command:
+
+```
+nix flake show --allow-import-from-derivation --json | jq
+```
+
+Which provides enough build data on the running system to generate CI.
+
+And `nix build .#hydra-prelude` should work on all listed systems (I hope).
+
+What would be required of us would be to provide a larger package set as an
+input. We could maintain this as `horizon-hydra` on GitHub, and it would also
+serve both to provide build plan information for the hydra repository itself,
+and as a package set input for downstream developers.
+
+We can also run lint checks directly from the flake with
+
+```
+nix flake check -L
+```
