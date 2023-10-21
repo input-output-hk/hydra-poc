@@ -91,6 +91,7 @@ library
     Hydra.Network.Ouroboros.Server
     Hydra.Network.Ouroboros.Type
     Hydra.Network.Reliability
+    Hydra.Network.UDP
     Hydra.Node
     Hydra.Node.EventQueue
     Hydra.Node.Network
@@ -280,6 +281,7 @@ test-suite tests
     Hydra.Network.AuthenticateSpec
     Hydra.Network.HeartbeatSpec
     Hydra.Network.ReliabilitySpec
+    Hydra.Network.UDPSpec
     Hydra.NetworkSpec
     Hydra.Node.EventQueueSpec
     Hydra.NodeSpec
