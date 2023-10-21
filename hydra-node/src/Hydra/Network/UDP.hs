@@ -9,10 +9,12 @@ import Hydra.Prelude
 import Codec.CBOR.Read (deserialiseFromBytes)
 import Codec.CBOR.Write (toStrictByteString)
 import qualified Data.ByteString.Lazy as LBS
+import qualified Data.IP as IP
 import Data.Text (unpack)
 import Hydra.Logging (Tracer, traceWith)
 import Hydra.Network (Host (..), Network (..), NetworkCallback, NetworkComponent)
 import Network.Socket (
+  SockAddr (..),
   Socket,
   SocketType (Datagram),
   addrAddress,
@@ -20,15 +22,14 @@ import Network.Socket (
   bind,
   defaultProtocol,
   getAddrInfo,
-  socket, SockAddr (..),
+  socket,
  )
 import Network.Socket.ByteString (recvFrom, sendTo)
-import qualified Data.IP as IP
 
 type PeersResolver m msg = (msg -> m [Host])
 
 data UDPLog msg
-  = UDPLog
+  = UDPSent msg (Maybe Host)
   | UDPReceived msg (Maybe Host)
   deriving stock (Eq, Show, Generic)
   deriving anyclass (ToJSON, FromJSON)
@@ -44,24 +45,29 @@ withUDPNetwork ::
 withUDPNetwork tracer localhost peersResolver callback action = do
   sock <- createSocket localhost
   withAsync (udpServer tracer sock callback) $ \_ ->
-    action (udpClient sock peersResolver)
+    action (udpClient tracer sock peersResolver)
 
-udpClient :: (ToCBOR msg) => Socket -> PeersResolver IO msg -> Network IO msg
-udpClient sock peersResolver =
+udpClient ::
+  (ToCBOR msg) =>
+  Tracer IO (UDPLog msg) ->
+  Socket ->
+  PeersResolver IO msg ->
+  Network IO msg
+udpClient tracer sock peersResolver =
   Network $ \msg ->
     let payload = toStrictByteString $ toCBOR msg
-     in peersResolver msg >>= traverse_ (sendUDP sock payload)
-
-sendUDP :: Socket -> ByteString -> Host -> IO ()
-sendUDP sock payload Host{hostname, port} = do
-  addrinfos <- getAddrInfo Nothing (Just $ unpack hostname) (Just $ show port)
-  case addrinfos of
-    (remoteAddr : _) -> do
-      -- TODO: chunk the payload if too large. In theory, UDP messages can be several
-      -- 10s of KBs large but in practice, routers can drop messages larger than ~512 bytes
-      -- so it's necessary to chunk and reassemble larger messages.
-      void $ sendTo sock payload (addrAddress remoteAddr)
-    _ -> error "TODO: what if address is not resolved"
+     in peersResolver msg >>= traverse_ (sendUDP msg payload)
+ where
+  sendUDP msg payload Host{hostname, port} = do
+    addrinfos <- getAddrInfo Nothing (Just $ unpack hostname) (Just $ show port)
+    case addrinfos of
+      ((addrAddress -> remoteAddr) : _) -> do
+        -- TODO: chunk the payload if too large. In theory, UDP messages can be several
+        -- 10s of KBs large but in practice, routers can drop messages larger than ~512 bytes
+        -- so it's necessary to chunk and reassemble larger messages.
+        void $ sendTo sock payload remoteAddr
+        traceWith tracer (UDPSent msg (fromSockAddr remoteAddr))
+      _ -> error "TODO: what if address is not resolved"
 
 udpServer ::
   forall msg.
@@ -75,7 +81,7 @@ udpServer tracer sock callback = do
  where
   receiveMsg = do
     -- TODO: reassemble large messages
-    (bytes, from) <- recvFrom sock 4096
+    (bytes, from) <- recvFrom sock 512
     case deserialiseFromBytes (fromCBOR @msg) (LBS.fromStrict bytes) of
       Left err -> error $ "TODO: handle error: " <> show err
       Right (_, msg) -> traceWith tracer (UDPReceived msg (fromSockAddr from)) >> callback msg
