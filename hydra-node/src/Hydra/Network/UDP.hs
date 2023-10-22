@@ -8,6 +8,7 @@ import Hydra.Prelude
 
 import Codec.CBOR.Read (deserialiseFromBytes)
 import Codec.CBOR.Write (toStrictByteString)
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.IP as IP
 import Data.Text (unpack)
@@ -29,7 +30,7 @@ import Network.Socket.ByteString (recvFrom, sendTo)
 type PeersResolver m msg = (msg -> m [Host])
 
 data UDPLog msg
-  = UDPSent msg (Maybe Host)
+  = UDPSent msg Int (Maybe Host)
   | UDPReceived msg (Maybe Host)
   deriving stock (Eq, Show, Generic)
   deriving anyclass (ToJSON, FromJSON)
@@ -44,6 +45,15 @@ withUDPNetwork ::
   NetworkComponent IO msg msg a
 withUDPNetwork tracer localhost peersResolver callback action = do
   sock <- createSocket localhost
+  withBaseUDPNetwork tracer sock peersResolver callback action
+
+withBaseUDPNetwork ::
+  (FromCBOR msg, ToCBOR msg) =>
+  Tracer IO (UDPLog msg) ->
+  Socket ->
+  PeersResolver IO msg ->
+  NetworkComponent IO msg msg a
+withBaseUDPNetwork tracer sock peersResolver callback action =
   withAsync (udpServer tracer sock callback) $ \_ ->
     action (udpClient tracer sock peersResolver)
 
@@ -66,8 +76,13 @@ udpClient tracer sock peersResolver =
         -- 10s of KBs large but in practice, routers can drop messages larger than ~512 bytes
         -- so it's necessary to chunk and reassemble larger messages.
         void $ sendTo sock payload remoteAddr
-        traceWith tracer (UDPSent msg (fromSockAddr remoteAddr))
+        traceWith tracer (UDPSent msg (BS.length payload) (fromSockAddr remoteAddr))
       _ -> error "TODO: what if address is not resolved"
+
+-- | Maximum size of packets to send.
+-- This number is a conservative estimation derived from <this article https://gafferongames.com/post/packet_fragmentation_and_reassembly/>
+maxPacketSize :: Int
+maxPacketSize = 1200
 
 udpServer ::
   forall msg.
@@ -81,15 +96,14 @@ udpServer tracer sock callback = do
  where
   receiveMsg = do
     -- TODO: reassemble large messages
-    (bytes, from) <- recvFrom sock 512
+    (bytes, from) <- recvFrom sock maxPacketSize
     case deserialiseFromBytes (fromCBOR @msg) (LBS.fromStrict bytes) of
       Left err -> error $ "TODO: handle error: " <> show err
       Right (_, msg) -> traceWith tracer (UDPReceived msg (fromSockAddr from)) >> callback msg
 
 fromSockAddr :: SockAddr -> Maybe Host
-fromSockAddr addr = do
-  (ip, port) <- IP.fromSockAddr addr
-  pure $ Host (show ip) port
+fromSockAddr addr =
+  uncurry Host . first show <$> IP.fromSockAddr addr
 
 createSocket :: Host -> IO Socket
 createSocket Host{hostname, port} = do

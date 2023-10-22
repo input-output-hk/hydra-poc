@@ -84,6 +84,7 @@ library
     Hydra.Logging.Monitoring
     Hydra.Network
     Hydra.Network.Authenticate
+    Hydra.Network.Fragment
     Hydra.Network.Heartbeat
     Hydra.Network.Message
     Hydra.Network.Ouroboros
@@ -279,6 +280,7 @@ test-suite tests
     Hydra.Model.Payment
     Hydra.ModelSpec
     Hydra.Network.AuthenticateSpec
+    Hydra.Network.FragmentSpec
     Hydra.Network.HeartbeatSpec
     Hydra.Network.ReliabilitySpec
     Hydra.Network.UDPSpec
