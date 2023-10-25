@@ -8,25 +8,35 @@ module Hydra.Network.Fragment where
 import Hydra.Prelude
 
 import Cardano.Binary (serialize', unsafeDeserialize')
-import Cardano.Crypto.Hash (Hash, SHA256, hashWith)
+import Cardano.Crypto.Hash (Hash, SHA256, hash, hashWith)
 import Codec.CBOR.Read (deserialiseFromBytes)
 import Control.Concurrent.Class.MonadSTM (MonadSTM (..), newTVarIO)
+import Data.Bits (testBit, (.&.), (.<<.), (.>>.), (.|.))
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Map as Map
-import Data.Vector (Vector, imap)
+import Data.Vector (Vector, findIndices, imap)
 import qualified Data.Vector as Vector
-import Data.Vector.Mutable (unsafeWrite)
+import Data.Vector.Generic (findIndexR)
+import Data.Vector.Mutable (read, unsafeWrite, write)
 import Hydra.Logging (Tracer, traceWith)
 import Hydra.Network (Network (..), NetworkCallback, NetworkComponent)
 import Hydra.Network.UDP (maxPacketSize)
+import Test.QuickCheck (vectorOf)
 
 newtype MsgId = MsgId {unMsgId :: Hash SHA256 ByteString}
   deriving newtype (Eq, Ord, Show, ToJSON, FromJSON)
 
+instance Arbitrary MsgId where
+  arbitrary = MsgId . hashWith id . BS.pack <$> vectorOf 32 arbitrary
+
 data FragmentLog msg
   = Fragmenting {msgId :: MsgId, size :: Int}
   | Reassembling {msgId :: MsgId, size :: Int}
+  | ReceivedFragment {msgId :: MsgId, max :: Word16, current :: Word16}
+  | ReceivedAck {msgId :: MsgId, acks :: [Word32]}
+  | Resending Int
+  | Acking Int
   deriving stock (Eq, Show, Generic)
   deriving anyclass (ToJSON, FromJSON)
 
@@ -68,14 +78,46 @@ data Packet msg
   deriving stock (Eq, Show)
 
 withFragmentHandler ::
-  (MonadSTM m, ToCBOR msg, FromCBOR msg) =>
+  (ToCBOR msg, FromCBOR msg, MonadAsync m, MonadDelay m) =>
   Tracer m (FragmentLog msg) ->
   NetworkComponent m (Packet ByteString) (Packet ByteString) a ->
   NetworkComponent m msg msg a
 withFragmentHandler tracer withNetwork callback action = do
   fragments <- newTVarIO (Fragments mempty mempty)
   withNetwork (reassemble tracer fragments callback) $ \Network{broadcast} ->
-    action (fragment tracer fragments broadcast)
+    -- FIXME: Assumes broadcast is threadsafe
+    withAsync (handleFragments tracer fragments broadcast) $ \_ ->
+      action (fragment tracer fragments broadcast)
+
+handleFragments ::
+  (MonadDelay m, MonadAsync m) =>
+  Tracer m (FragmentLog msg) ->
+  TVar m Fragments ->
+  (Packet ByteString -> m ()) ->
+  m ()
+handleFragments tracer fragments broadcast =
+  concurrently_ ackFragments resendUnackedFragments
+ where
+  ackFragments = do
+    threadDelay 100_000
+    Fragments{incoming} <- readTVarIO fragments
+    let acks = mapMaybe (uncurry acknowledge) $ Map.toList incoming
+    traceWith tracer (Acking (length acks))
+    forM_ acks broadcast
+
+  resendUnackedFragments = do
+    threadDelay 130_000
+    Fragments{outgoing} <- readTVarIO fragments
+    let unacked = concatMap (uncurry unackedFragments) $ Map.toList outgoing
+    traceWith tracer (Resending (length unacked))
+    forM_ unacked broadcast
+
+unackedFragments :: MsgId -> Vector (ByteString, Bool) -> [Packet ByteString]
+unackedFragments msgId vec =
+  let notAcked = findIndices (not . snd) vec
+      len = length vec
+      mkFragment i fs = asFragment msgId (fromIntegral len) i (fst $ vec Vector.! i) : fs
+   in foldr mkFragment [] $ toList notAcked
 
 data Fragments = Fragments
   { outgoing :: Map MsgId (Vector (ByteString, Bool))
@@ -129,6 +171,7 @@ reassemble tracer fragments callback = \case
   Message _ payload ->
     callback (unsafeDeserialize' payload)
   Fragment{msgId, maxFragment, curFragment, payload} -> do
+    traceWith tracer (ReceivedFragment msgId maxFragment curFragment)
     msgM <- atomically $ do
       frags@Fragments{incoming} <- readTVar fragments
       let vec' = case Map.lookup msgId incoming of
@@ -156,4 +199,46 @@ reassemble tracer fragments callback = \case
           Right (_, m) -> do
             traceWith tracer (Reassembling msgId (BS.length bytes))
             callback m
-  _ -> pure ()
+  Ack msgId ack -> do
+    let acked = computeAckIds ack
+    traceWith tracer (ReceivedAck msgId acked)
+    atomically $ do
+      frags@Fragments{outgoing} <- readTVar fragments
+      let outgoing' = case Map.lookup msgId outgoing of
+            Nothing -> outgoing
+            Just vec ->
+              let vec' = updateAckIds vec ack
+               in Map.insert msgId vec' outgoing
+      writeTVar fragments $ frags{outgoing = outgoing'}
+
+updateAckIds :: Vector (ByteString, Bool) -> Word32 -> Vector (ByteString, Bool)
+updateAckIds vec ack =
+  let acked = computeAckIds ack
+   in Vector.modify
+        ( \v -> forM_ acked $ \w -> do
+            let i = fromIntegral w
+            (payload, _) <- v `read` i
+            write v i (payload, True)
+        )
+        vec
+
+acknowledge :: MsgId -> Vector (ByteString, Bool) -> Maybe (Packet ByteString)
+acknowledge msgId vec = do
+  maxAck <- findIndexR snd vec
+  let otherAcks = fmap (\i -> maxAck - i) $ findIndices snd $ Vector.take maxAck vec
+      ackBits = foldl' (\bits i -> (1 .<<. (i - 1)) .|. bits) 0 otherAcks
+      ack = maxAck .|. (ackBits .<<. 12)
+  pure $ Ack msgId (fromIntegral ack)
+
+computeAckIds :: Word32 -> [Word32]
+computeAckIds ack =
+  let maxAck = ack .&. 0x00000fff
+      ackBits = ack .>>. 12
+      ackIdxs =
+        foldr
+          ( \b bs ->
+              if testBit ackBits b then (maxAck - fromIntegral b - 1) : bs else bs
+          )
+          []
+          [0 .. fromIntegral (maxAck - 1)]
+   in maxAck : ackIdxs

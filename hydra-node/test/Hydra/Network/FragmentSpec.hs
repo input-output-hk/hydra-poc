@@ -1,54 +1,75 @@
+{-# LANGUAGE TypeApplications #-}
+
 module Hydra.Network.FragmentSpec where
 
 import Hydra.Prelude hiding (show)
 import Test.Hydra.Prelude
 
 import Control.Concurrent.Class.MonadSTM (
-  newEmptyTMVar,
   newTQueueIO,
   newTVarIO,
-  putTMVar,
   readTQueue,
-  takeTMVar,
   writeTQueue,
   writeTVar,
  )
-import Control.Monad.IOSim (runSimOrThrow)
+import Control.Monad.IOSim (runSimTrace, traceResult)
 import Data.Aeson (Value (String))
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base16 as Hex
-import Hydra.Logging (showLogsOnFailure)
+import Data.Text (unpack)
+import qualified Data.Vector as Vector
 import Hydra.Network (Network (..))
-import Hydra.Network.Fragment (withFragmentHandler)
+import Hydra.Network.Fragment (FragmentLog, Packet (..), acknowledge, updateAckIds, withFragmentHandler)
 import Hydra.Network.ReliabilitySpec (noop)
-import Hydra.Network.UDP (maxPacketSize)
 import System.Random (mkStdGen, uniformR)
-import Test.QuickCheck (resize, tabulate, (===))
+import Test.QuickCheck (NonEmptyList (..), conjoin, counterexample, property, resize, (===), (==>))
+import Test.Util (printTrace, traceInIOSim)
 import Text.Show (Show (show))
 
 spec :: Spec
-spec =
-  prop "can send and receive large messages" $ \(msg :: Message) seed ->
-    let result = runSimOrThrow $ do
-          receivedByBob <- atomically $ newEmptyTMVar
-          aliceToBob <- newTQueueIO
-          bobToAlice <- newTQueueIO
-          randomness <- newTVarIO $ mkStdGen seed
+spec = do
+  prop "compute and extract acked fragments are inverse" $ \msgId (NonEmpty boolVec) ->
+    (length boolVec <= 20)
+      ==> let fragmentsVec = Vector.zip (Vector.replicate (length boolVec) "") $ Vector.fromList boolVec
+              allFalse = Vector.replicate (length boolVec) ("", False)
+              packet = acknowledge msgId fragmentsVec
+           in case packet of
+                Nothing -> property (not $ and boolVec)
+                Just (Ack mid acks) ->
+                  let updatedAcked = updateAckIds allFalse acks
+                   in conjoin
+                        [ fragmentsVec === updatedAcked
+                        , mid === msgId
+                        ]
+                _ ->
+                  property False
+                    & counterexample ("packet: " <> show packet)
+                    & counterexample ("fragments: " <> show fragmentsVec)
 
-          let aliceNetwork = network randomness (bobToAlice, aliceToBob)
-              bobNetwork = network randomness (aliceToBob, bobToAlice)
+  prop "can send and receive large messages" $ \(msg :: Msg) seed ->
+    let result =
+          runSimTrace $ do
+            let tracer = traceInIOSim
+            receivedByBob <- newTVarIO Nothing
+            aliceToBob <- newTQueueIO
+            bobToAlice <- newTQueueIO
+            randomness <- newTVarIO $ mkStdGen seed
 
-          showLogsOnFailure $ \tracer ->
+            let aliceNetwork = network randomness (bobToAlice, aliceToBob)
+                bobNetwork = network randomness (aliceToBob, bobToAlice)
+
             withFragmentHandler tracer aliceNetwork noop $ \Network{broadcast = aliceSends} ->
-              withFragmentHandler tracer bobNetwork (atomically . putTMVar receivedByBob) $ \_ -> do
+              withFragmentHandler tracer bobNetwork (atomically . writeTVar receivedByBob . Just) $ \_ -> do
                 aliceSends msg
-                failAfter 2 $
-                  atomically (takeTMVar receivedByBob)
-     in result
-          === msg
-          & tabulate "Num. Fragments" ["< " <> show ((BS.length (bytes msg) `div` (maxPacketSize * 10) + 1) * 10)]
+                threadDelay 200_000_000
+                atomically $ readTVar receivedByBob
+     in ( case traceResult False result of
+            Right x -> x === Just msg
+            _ -> property False
+        )
+          & counterexample ("trace:" <> unpack (printTrace (Proxy @(FragmentLog Msg)) result))
  where
-  network _seed (readQueue, writeQueue) callback action =
+  network seed (readQueue, writeQueue) callback action =
     withAsync
       ( forever $ do
           newMsg <- atomically $ readTQueue readQueue
@@ -58,32 +79,32 @@ spec =
         action $
           Network
             { broadcast = \m -> atomically $ do
-                -- -- drop 2% of messages
-                -- r <- randomNumber seed
-                -- unless (r < 0.02) $
-                writeTQueue writeQueue m
+                -- drop 2% of messages
+                r <- randomNumber seed
+                unless (r < 0.02) $
+                  writeTQueue writeQueue m
             }
 
-  _randomNumber seed' = do
+  randomNumber seed' = do
     genSeed <- readTVar seed'
     let (res, newGenSeed) = uniformR (0 :: Double, 1) genSeed
     writeTVar seed' newGenSeed
     pure res
 
-newtype Message = Message {bytes :: ByteString}
+newtype Msg = Msg {bytes :: ByteString}
   deriving newtype (Eq, ToCBOR, FromCBOR)
 
-instance Show Message where
-  show Message{bytes} = "<" <> show (BS.length bytes) <> " random bytes>"
+instance Show Msg where
+  show Msg{bytes} = "<" <> show (BS.length bytes) <> " random bytes>"
 
-instance ToJSON Message where
-  toJSON (Message bytes) =
+instance ToJSON Msg where
+  toJSON (Msg bytes) =
     String $ (decodeUtf8 $ Hex.encode $ BS.take 16 bytes) <> "..."
 
-instance Arbitrary Message where
-  arbitrary = Message . BS.pack <$> resize 100000 arbitrary
-  shrink Message{bytes} =
+instance Arbitrary Msg where
+  arbitrary = Msg . BS.pack <$> resize 10000 arbitrary
+  shrink Msg{bytes} =
     let len = BS.length bytes
      in if len > 0
-          then [Message $ BS.take (len * 9 `div` 10) bytes]
+          then [Msg $ BS.take (len * 9 `div` 10) bytes]
           else []
