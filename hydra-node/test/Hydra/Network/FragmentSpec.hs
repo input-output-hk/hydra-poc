@@ -22,29 +22,30 @@ import Hydra.Network (Network (..))
 import Hydra.Network.Fragment (FragmentLog, Packet (..), acknowledge, updateAckIds, withFragmentHandler)
 import Hydra.Network.ReliabilitySpec (noop)
 import System.Random (mkStdGen, uniformR)
-import Test.QuickCheck (NonEmptyList (..), conjoin, counterexample, property, resize, (===), (==>))
+import Test.QuickCheck (NonEmptyList (..), conjoin, counterexample, property, resize, suchThat, (===), (==>))
 import Test.Util (printTrace, traceInIOSim)
 import Text.Show (Show (show))
 
 spec :: Spec
 spec = do
-  prop "compute and extract acked fragments are inverse" $ \msgId (NonEmpty boolVec) ->
-    (length boolVec <= 20)
-      ==> let fragmentsVec = Vector.zip (Vector.replicate (length boolVec) "") $ Vector.fromList boolVec
-              allFalse = Vector.replicate (length boolVec) ("", False)
-              packet = acknowledge msgId fragmentsVec
-           in case packet of
-                Nothing -> property (not $ and boolVec)
-                Just (Ack mid acks) ->
-                  let updatedAcked = updateAckIds allFalse acks
-                   in conjoin
-                        [ fragmentsVec === updatedAcked
-                        , mid === msgId
-                        ]
-                _ ->
-                  property False
-                    & counterexample ("packet: " <> show packet)
-                    & counterexample ("fragments: " <> show fragmentsVec)
+  modifyMaxSuccess (const 1000) $
+    prop "compute and extract acked fragments are inverse" $ \msgId (NonEmpty boolVec) ->
+      (length boolVec <= 20)
+        ==> let fragmentsVec = Vector.zip (Vector.replicate (length boolVec) "") $ Vector.fromList boolVec
+                allFalse = Vector.replicate (length boolVec) ("", False)
+                packet = acknowledge msgId fragmentsVec
+             in case packet of
+                  Nothing -> property (not $ and boolVec)
+                  Just (Ack mid acks) ->
+                    let updatedAcked = updateAckIds allFalse acks
+                     in conjoin
+                          [ fragmentsVec === updatedAcked
+                          , mid === msgId
+                          ]
+                  _ ->
+                    property False
+                      & counterexample ("packet: " <> show packet)
+                      & counterexample ("fragments: " <> show fragmentsVec)
 
   prop "can send and receive large messages" $ \(msg :: Msg) seed ->
     let result =
@@ -67,7 +68,7 @@ spec = do
             Right x -> x === Just msg
             _ -> property False
         )
-          & counterexample ("trace:" <> unpack (printTrace (Proxy @(FragmentLog Msg)) result))
+          & counterexample ("trace:\n" <> unpack (printTrace (Proxy @(FragmentLog Msg)) result))
  where
   network seed (readQueue, writeQueue) callback action =
     withAsync
@@ -102,7 +103,10 @@ instance ToJSON Msg where
     String $ (decodeUtf8 $ Hex.encode $ BS.take 16 bytes) <> "..."
 
 instance Arbitrary Msg where
-  arbitrary = Msg . BS.pack <$> resize 10000 arbitrary
+  arbitrary = do
+    bytes <- resize 10000 arbitrary `suchThat` (not . null)
+    pure $ Msg $ BS.pack bytes
+
   shrink Msg{bytes} =
     let len = BS.length bytes
      in if len > 0

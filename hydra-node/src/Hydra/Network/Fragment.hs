@@ -8,10 +8,10 @@ module Hydra.Network.Fragment where
 import Hydra.Prelude
 
 import Cardano.Binary (serialize', unsafeDeserialize')
-import Cardano.Crypto.Hash (Hash, SHA256, hash, hashWith)
+import Cardano.Crypto.Hash (Hash, SHA256, hashWith)
 import Codec.CBOR.Read (deserialiseFromBytes)
 import Control.Concurrent.Class.MonadSTM (MonadSTM (..), newTVarIO)
-import Data.Bits (testBit, (.&.), (.<<.), (.>>.), (.|.))
+import Data.Bits ((.&.), (.<<.), (.>>.), (.|.))
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Map as Map
@@ -34,7 +34,7 @@ data FragmentLog msg
   = Fragmenting {msgId :: MsgId, size :: Int}
   | Reassembling {msgId :: MsgId, size :: Int}
   | ReceivedFragment {msgId :: MsgId, max :: Word16, current :: Word16}
-  | ReceivedAck {msgId :: MsgId, acks :: [Word32]}
+  | ReceivedAck {msgId :: MsgId, acks :: Word32}
   | Resending Int
   | Acking Int
   deriving stock (Eq, Show, Generic)
@@ -200,8 +200,6 @@ reassemble tracer fragments callback = \case
             traceWith tracer (Reassembling msgId (BS.length bytes))
             callback m
   Ack msgId ack -> do
-    let acked = computeAckIds ack
-    traceWith tracer (ReceivedAck msgId acked)
     atomically $ do
       frags@Fragments{outgoing} <- readTVar fragments
       let outgoing' = case Map.lookup msgId outgoing of
@@ -210,10 +208,11 @@ reassemble tracer fragments callback = \case
               let vec' = updateAckIds vec ack
                in Map.insert msgId vec' outgoing
       writeTVar fragments $ frags{outgoing = outgoing'}
+    traceWith tracer (ReceivedAck msgId ack)
 
 updateAckIds :: Vector (ByteString, Bool) -> Word32 -> Vector (ByteString, Bool)
 updateAckIds vec ack =
-  let acked = computeAckIds ack
+  let acked = {-# SCC compute_ack_to_update #-} computeAckIds ack
    in Vector.modify
         ( \v -> forM_ acked $ \w -> do
             let i = fromIntegral w
@@ -235,10 +234,17 @@ computeAckIds ack =
   let maxAck = ack .&. 0x00000fff
       ackBits = ack .>>. 12
       ackIdxs =
-        foldr
-          ( \b bs ->
-              if testBit ackBits b then (maxAck - fromIntegral b - 1) : bs else bs
-          )
-          []
-          [0 .. fromIntegral (maxAck - 1)]
+        let bit = 0x1
+         in snd $
+              foldl'
+                ( \(cur, bs) b ->
+                    let next = cur .<<. 1
+                     in ( next
+                        , if ackBits .&. cur > 0
+                            then (maxAck - b - 1) : bs
+                            else bs
+                        )
+                )
+                (bit, [])
+                [0 .. 19]
    in maxAck : ackIdxs
