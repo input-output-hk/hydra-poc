@@ -231,15 +231,17 @@ acknowledge msgId vec = do
 
 computeAckIds :: Word32 -> [Word32]
 computeAckIds ack =
-  let maxAck = ack .&. 0x00000fff
-      ackBits = ack .>>. 12
+  let !maxAck = ack .&. 0x00000fff
+      !ackBits = ack .>>. 12
+      !offset = maxAck - 1
       ackIdxs =
         foldl'
           ( \bs b ->
               if testBit ackBits b
-                then (maxAck - fromIntegral b - 1) : bs
+                then let !b' =  (offset - fromIntegral b) in b' : bs
                 else bs
           )
           []
           [0 .. 19]
    in maxAck : ackIdxs
+{-# INLINE computeAckIds #-}

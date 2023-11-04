@@ -32,12 +32,37 @@ main = do
         , bench "Deserialize NewTx (JSON)" $ whnf (Aeson.decode @(ClientInput Tx)) jsonNewTx
         , bench "Deserialize NewTx (CBOR-in-JSON)" $ whnf (Aeson.decode @(ClientInput Tx)) cborNewTx
         ]
+    , bgroup
+        "Packets fragmentation"
+        [ bench "Compute AckIds 1" $ whnf benchComputeAckIds frags
+        ]
     ]
+
+benchComputeAckIds :: [Word32] -> Int
+benchComputeAckIds frags =
+  sum $ length . computeAckIds <$> frags
 
 prepareTx :: IO (UTxO, Tx)
 prepareTx =
   second List.head <$> generate (genFixedSizeSequenceOfSimplePaymentTransactions 1)
 
+prepareFragments :: IO [Word32]
+prepareFragments =
+  generate (vectorOf 1000 genFragment)
+
+genFragment :: Gen Word32
+genFragment = do
+  maxA <- choose (1 :: Word32, 20)
+  acks <- vectorOf (fromIntegral maxA) arbitrary
+  pure $ maxA .|. mkBits acks
+ where
+   mkBits :: [Bool] -> Word32
+   mkBits acks = foldl' mkBit 0 acks .<<. 12
+
+   mkBit n b =
+     if b
+     then (n .<<. 1) .|. 1
+     else n .<<. 1
 benchApplyTxs :: (UTxO, Tx) -> Either (Tx, ValidationError) UTxO
 benchApplyTxs (utxo, tx) = applyTransactions defaultLedger (ChainSlot 1) utxo [tx]
 
