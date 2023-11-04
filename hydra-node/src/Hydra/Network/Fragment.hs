@@ -11,7 +11,7 @@ import Cardano.Binary (serialize', unsafeDeserialize')
 import Cardano.Crypto.Hash (Hash, SHA256, hashWith)
 import Codec.CBOR.Read (deserialiseFromBytes)
 import Control.Concurrent.Class.MonadSTM (MonadSTM (..), newTVarIO)
-import Data.Bits ((.&.), (.<<.), (.>>.), (.|.))
+import Data.Bits (testBit, (.&.), (.<<.), (.>>.), (.|.))
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Map as Map
@@ -234,17 +234,12 @@ computeAckIds ack =
   let maxAck = ack .&. 0x00000fff
       ackBits = ack .>>. 12
       ackIdxs =
-        let bit = 0x1
-         in snd $
-              foldl'
-                ( \(cur, bs) b ->
-                    let next = cur .<<. 1
-                     in ( next
-                        , if ackBits .&. cur > 0
-                            then (maxAck - b - 1) : bs
-                            else bs
-                        )
-                )
-                (bit, [])
-                [0 .. 19]
+        foldl'
+          ( \bs b ->
+              if testBit ackBits b
+                then (maxAck - fromIntegral b - 1) : bs
+                else bs
+          )
+          []
+          [0 .. 19]
    in maxAck : ackIdxs

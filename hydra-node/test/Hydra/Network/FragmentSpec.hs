@@ -108,7 +108,7 @@ instance Arbitrary Msg where
     pure $ Msg $ BS.pack bytes
 
   shrink Msg{bytes} =
-    let len = BS.length bytes
+    let len = BS.length bytes * 9 `div` 10
      in if len > 0
-          then [Msg $ BS.take (len * 9 `div` 10) bytes]
+          then [Msg $ BS.take len bytes]
           else []
