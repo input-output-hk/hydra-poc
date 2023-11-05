@@ -22,7 +22,17 @@ import Hydra.Network (Network (..))
 import Hydra.Network.Fragment (FragmentLog, Packet (..), acknowledge, updateAckIds, withFragmentHandler)
 import Hydra.Network.ReliabilitySpec (noop)
 import System.Random (mkStdGen, uniformR)
-import Test.QuickCheck (NonEmptyList (..), conjoin, counterexample, property, resize, suchThat, (===), (==>))
+import Test.QuickCheck (
+  NonEmptyList (..),
+  conjoin,
+  counterexample,
+  property,
+  resize,
+  suchThat,
+  tabulate,
+  (===),
+  (==>),
+ )
 import Test.Util (printTrace, traceInIOSim)
 import Text.Show (Show (show))
 
@@ -37,7 +47,7 @@ spec = do
              in case packet of
                   Nothing -> property (not $ and boolVec)
                   Just (Ack mid acks) ->
-                    let updatedAcked = updateAckIds allFalse acks
+                    let updatedAcked = fst $ updateAckIds allFalse acks
                      in conjoin
                           [ fragmentsVec === updatedAcked
                           , mid === msgId
@@ -62,13 +72,14 @@ spec = do
             withFragmentHandler tracer aliceNetwork noop $ \Network{broadcast = aliceSends} ->
               withFragmentHandler tracer bobNetwork (atomically . writeTVar receivedByBob . Just) $ \_ -> do
                 aliceSends msg
-                threadDelay 200_000_000
+                threadDelay 10_000_000
                 atomically $ readTVar receivedByBob
      in ( case traceResult False result of
             Right x -> x === Just msg
             _ -> property False
         )
           & counterexample ("trace:\n" <> unpack (printTrace (Proxy @(FragmentLog Msg)) result))
+          & tabulate "Size" ["< " <> show ((BS.length (bytes msg) `div` 1000 + 1) * 1000)]
  where
   network seed (readQueue, writeQueue) callback action =
     withAsync
