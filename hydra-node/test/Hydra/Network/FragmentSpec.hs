@@ -79,7 +79,7 @@ spec = do
             _ -> property False
         )
           & counterexample ("trace:\n" <> unpack (printTrace (Proxy @(FragmentLog Msg)) result))
-          & tabulate "Size" ["< " <> show ((BS.length (bytes msg) `div` 1000 + 1) * 1000)]
+          & tabulate "Size" ["< " <> show ((BS.length (bytes msg) `div` 100000 + 1) * 100000)]
  where
   network seed (readQueue, writeQueue) callback action =
     withAsync
@@ -115,7 +115,7 @@ instance ToJSON Msg where
 
 instance Arbitrary Msg where
   arbitrary = do
-    bytes <- resize 10000 arbitrary `suchThat` (not . null)
+    bytes <- resize 1000000 arbitrary `suchThat` (not . null)
     pure $ Msg $ BS.pack bytes
 
   shrink Msg{bytes} =
