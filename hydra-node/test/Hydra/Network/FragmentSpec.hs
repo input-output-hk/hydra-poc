@@ -35,6 +35,7 @@ import Test.QuickCheck (
  )
 import Test.Util (printTrace, traceInIOSim)
 import Text.Show (Show (show))
+import Hydra.Network.UDP (maxPacketSize)
 
 spec :: Spec
 spec = do
@@ -57,7 +58,7 @@ spec = do
                       & counterexample ("packet: " <> show packet)
                       & counterexample ("fragments: " <> show fragmentsVec)
 
-  prop "can send and receive large messages" $ \(msg :: Msg) seed ->
+  prop "can send and receive large (< 1MB) messages" $ \(msg :: Msg) seed ->
     let result =
           runSimTrace $ do
             let tracer = traceInIOSim
@@ -115,8 +116,10 @@ instance ToJSON Msg where
 
 instance Arbitrary Msg where
   arbitrary = do
-    bytes <- resize 1000000 arbitrary `suchThat` (not . null)
+    bytes <- resize maxSize arbitrary `suchThat` (not . null)
     pure $ Msg $ BS.pack bytes
+   where
+    maxSize = 1000 * maxPacketSize
 
   shrink Msg{bytes} =
     let len = BS.length bytes * 9 `div` 10

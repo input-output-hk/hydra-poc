@@ -95,7 +95,6 @@ udpServer tracer sock callback = do
   forever receiveMsg
  where
   receiveMsg = do
-    -- TODO: reassemble large messages
     (bytes, from) <- recvFrom sock maxPacketSize
     case deserialiseFromBytes (fromCBOR @msg) (LBS.fromStrict bytes) of
       Left err -> error $ "TODO: handle error: " <> show err

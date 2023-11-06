@@ -98,14 +98,20 @@ handleFragments fragments broadcast =
  where
   ackFragments = forever $ do
     threadDelay 100_000
-    Fragments{incoming} <- readTVarIO fragments
-    let acks = mapMaybe (uncurry acknowledge) $ Map.toList incoming
+    acks <- atomically $ do
+      Fragments{incoming} <- readTVar fragments
+      let acks = mapMaybe (uncurry acknowledge) $ Map.toList incoming
+      check $ not $ null acks
+      pure acks
     forM_ acks broadcast
 
   resendUnackedFragments = forever $ do
-    threadDelay 130_000
-    Fragments{outgoing} <- readTVarIO fragments
-    let unacked = concatMap (uncurry unackedFragments) $ Map.toList outgoing
+    threadDelay 100_000
+    unacked <- atomically $ do
+      Fragments{outgoing} <- readTVar fragments
+      let unacked = concatMap (uncurry unackedFragments) $ Map.toList outgoing
+      check $ not $ null unacked
+      pure unacked
     forM_ unacked broadcast
 
 unackedFragments :: MsgId -> Vector (ByteString, Bool) -> [Packet ByteString]
