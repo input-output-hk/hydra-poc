@@ -10,7 +10,7 @@
 
     flake-parts.url = "github:hercules-ci/flake-parts";
 
-    horizon-plutus.url = "git+https://gitlab.horizon-haskell.net/package-sets/horizon-plutus";
+    horizon-cardano.url = "git+https://gitlab.horizon-haskell.net/package-sets/horizon-cardano";
 
     lint-utils.url = "git+https://gitlab.nixica.dev/nix/lint-utils";
 
@@ -21,7 +21,7 @@
     inputs@
     { self
     , flake-parts
-    , horizon-plutus
+    , horizon-cardano
     , lint-utils
     , nixpkgs
     , ...
@@ -37,20 +37,26 @@
           with pkgs.haskell.lib.compose;
           let
             myOverlay = final: prev: {
+              hspec-golden-aeson = final.callHackage "hspec-golden-aeson" "0.9.0.0" { };
               hspec-golden = final.callHackage "hspec-golden" "0.2.1.0" { };
-              cardano-api = null;
-              gitrev = final.callHackage "gitrev" "1.3.1" { };
-              io-classes = final.callHackage "io-classes" "1.2.0.0" { };
-              si-timers = final.callHackage "si-timers" "1.2.0.0" { };
-              hydra-cardano-api = null;
-              hydra-prelude = disableLibraryProfiling (final.callCabal2nix "hydra-prelude" ./hydra-prelude { });
-              hydra-plutus = final.callCabal2nix "hydra-plutus" ./hydra-plutus { };
-              hydra-plutus-extras = final.callCabal2nix "hydra-plutus-extras" ./hydra-plutus-extras { };
-              hydra-test-utils = null;
+              hspec-junit-formatter = final.callHackage "hspec-junit-formatter" "1.1.0.2" { };
+              hydra-cardano-api = doJailbreak (final.callCabal2nix "hydra-cardano-api" ./hydra-cardano-api { });
+              hydra-cluster = doJailbreak (final.callCabal2nix "hydra-cluster" ./hydra-cluster { });
+              hydra-node = doJailbreak (final.callCabal2nix "hydra-node" ./hydra-node { });
+              hydra-prelude = doJailbreak (final.callCabal2nix "hydra-prelude" ./hydra-prelude { });
+              hydra-plutus = doJailbreak (final.callCabal2nix "hydra-plutus" ./hydra-plutus { });
+              hydra-plutus-extras = doJailbreak (final.callCabal2nix "hydra-plutus-extras" ./hydra-plutus-extras { });
+              hydra-test-utils = doJailbreak (final.callCabal2nix "hydra-test-utils" ./hydra-test-utils { });
+              hydra-tui = doJailbreak (final.callCabal2nix "hydra-tui" ./hydra-tui { });
+              modern-uri = doJailbreak (final.callHackage "modern-uri" "0.3.6.1" { });
+              quickcheck-dynamic = doJailbreak (final.callHackage "quickcheck-dynamic" "3.3.1" { });
               relude = doJailbreak (final.callHackage "relude" "1.2.1.0" { });
+              req = doJailbreak (final.callHackage "req" "3.13.1" { });
+              versions = doJailbreak (final.callHackage "versions" "6.0.3" { });
+              wai-websockets = doJailbreak (final.callHackage "wai-websockets" "3.0.1.2" { });
             };
 
-            legacyPackages = horizon-plutus.legacyPackages.${system}.extend myOverlay;
+            legacyPackages = horizon-cardano.legacyPackages.${system}.extend myOverlay;
 
           in
           {
@@ -69,7 +75,18 @@
               ];
             });
 
-            packages = { inherit (legacyPackages) hydra-prelude hydra-plutus hydra-plutus-extras; };
+            packages = {
+              inherit (legacyPackages)
+                hydra-cardano-api
+                hydra-cluster
+                hydra-node
+                hydra-prelude
+                hydra-plutus
+                hydra-plutus-extras
+                hydra-test-utils
+                hydra-tui
+                ;
+            };
           };
 
       };
