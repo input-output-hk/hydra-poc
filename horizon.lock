@@ -1,0 +1,61 @@
+[ { mapKey = "RSA"
+  , mapValue =
+      "3528ef967385e2c1c6d2193584e1834c419b52a2280fc9ac8c0200f6cee58fe6"
+  }
+, { mapKey = "authenticate-oauth"
+  , mapValue =
+      "2c3cbc7d58182be5bdb7e08b46fdbb3ba12a91ad44b7c2d5af2382937efde957"
+  }
+, { mapKey = "crypto-pubkey-types"
+  , mapValue =
+      "52954097095799354529881d78b87e18e98822e947afac384ac33a8ff434d4e5"
+  }
+, { mapKey = "hspec-golden"
+  , mapValue =
+      "72887da8e597d76e7c090eff659e95604c1e3bbb9afead513a245d4d394b3839"
+  }
+, { mapKey = "hspec-golden-aeson"
+  , mapValue =
+      "e929f278fc06c030b51a0043ca73d7ccc0b2be879f0f2850a59aa75c6ccfceb1"
+  }
+, { mapKey = "hspec-junit-formatter"
+  , mapValue =
+      "ebaad54d10e43ba3c17d4d8ba5da89800e561800025a1e6b73c5ba6d60641550"
+  }
+, { mapKey = "iso8601-time"
+  , mapValue =
+      "973d6098c03af5f6f0de5dd2443273ecc3ab11fe0b45809f0e3ddee8ab6df0c3"
+  }
+, { mapKey = "modern-uri"
+  , mapValue =
+      "4860c89301d19439d094c4c8a181432697ec8c00111bed3b250f069cfaa1fcdd"
+  }
+, { mapKey = "quickcheck-arbitrary-adt"
+  , mapValue =
+      "89d54b49edc359675d4750d129a75053aaeedf3de20e6606c0c7a8bea79baa6d"
+  }
+, { mapKey = "quickcheck-dynamic"
+  , mapValue =
+      "825d8681531693e8d62d4ec1cbbd7c66dc82f1590254e17867591c9612504fbc"
+  }
+, { mapKey = "relude"
+  , mapValue =
+      "afe160a37152e4cb6180073096a84dac544ae723a504d016ed7495c3749141f3"
+  }
+, { mapKey = "req"
+  , mapValue =
+      "9941aae4d07cb11a9b132e5dbb6a030c612a503925e1559f57923d4654102d08"
+  }
+, { mapKey = "retry"
+  , mapValue =
+      "3d8dfdca0a0e1e22e30f34ee4f870c381b104ba2db69e0ebe2b027a68d098210"
+  }
+, { mapKey = "versions"
+  , mapValue =
+      "f46d0889e64320857f1ad2b4970e1bf5de502c03863c2ab7530f21b0afa7c1df"
+  }
+, { mapKey = "wai-websockets"
+  , mapValue =
+      "cda4f07f8fa85e435b3bcfc6315e840927d97c4b694d61942c2299dddd679994"
+  }
+]

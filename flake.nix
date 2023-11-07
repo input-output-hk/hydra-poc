@@ -37,9 +37,6 @@
           with pkgs.haskell.lib.compose;
           let
             myOverlay = final: prev: {
-              hspec-golden-aeson = final.callHackage "hspec-golden-aeson" "0.9.0.0" { };
-              hspec-golden = final.callHackage "hspec-golden" "0.2.1.0" { };
-              hspec-junit-formatter = final.callHackage "hspec-junit-formatter" "1.1.0.2" { };
               hydra-cardano-api = doJailbreak (final.callCabal2nix "hydra-cardano-api" ./hydra-cardano-api { });
               hydra-cluster = doJailbreak (final.callCabal2nix "hydra-cluster" ./hydra-cluster { });
               hydra-node = doJailbreak (final.callCabal2nix "hydra-node" ./hydra-node { });
@@ -48,15 +45,9 @@
               hydra-plutus-extras = doJailbreak (final.callCabal2nix "hydra-plutus-extras" ./hydra-plutus-extras { });
               hydra-test-utils = doJailbreak (final.callCabal2nix "hydra-test-utils" ./hydra-test-utils { });
               hydra-tui = doJailbreak (final.callCabal2nix "hydra-tui" ./hydra-tui { });
-              modern-uri = doJailbreak (final.callHackage "modern-uri" "0.3.6.1" { });
-              quickcheck-dynamic = doJailbreak (final.callHackage "quickcheck-dynamic" "3.3.1" { });
-              relude = doJailbreak (final.callHackage "relude" "1.2.1.0" { });
-              req = doJailbreak (final.callHackage "req" "3.13.1" { });
-              versions = doJailbreak (final.callHackage "versions" "6.0.3" { });
-              wai-websockets = doJailbreak (final.callHackage "wai-websockets" "3.0.1.2" { });
             };
 
-            legacyPackages = horizon-cardano.legacyPackages.${system}.extend myOverlay;
+            legacyPackages = horizon-cardano.legacyPackages.${system}.extend (pkgs.lib.composeManyExtensions [ (import ./overlay.nix { inherit pkgs; }) myOverlay]);
 
           in
           {
@@ -69,11 +60,22 @@
           nixpkgs-fmt = nixpkgs-fmt { src = self; };
         };
 
-            devShells.default = legacyPackages.hydra-prelude.env.overrideAttrs (attrs: {
-              buildInputs = attrs.buildInputs ++ [
-                legacyPackages.cabal-install
-              ];
-            });
+        devShells.default = legacyPackages.shellFor {
+          packages = p: [
+            p.hydra-cardano-api
+            p.hydra-cluster
+            p.hydra-node
+            p.hydra-plutus
+            p.hydra-plutus-extras
+            p.hydra-prelude
+            p.hydra-test-utils
+            p.hydra-tui
+          ];
+          buildInputs = [
+            legacyPackages.cabal-install
+            pkgs.nixpkgs-fmt
+          ];
+        };
 
             packages = {
               inherit (legacyPackages)
