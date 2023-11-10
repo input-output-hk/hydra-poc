@@ -12,12 +12,12 @@ import Cardano.Crypto.Hash (Hash, SHA256, hashWith)
 import Codec.CBOR.Read (deserialiseFromBytes)
 import Control.Concurrent.Class.MonadSTM (MonadSTM (..), newTVarIO)
 import Data.Bits (testBit, (.&.), (.<<.), (.>>.), (.|.))
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Base16 as Hex
-import qualified Data.ByteString.Lazy as LBS
-import qualified Data.Map as Map
+import Data.ByteString qualified as BS
+import Data.ByteString.Base16 qualified as Hex
+import Data.ByteString.Lazy qualified as LBS
+import Data.Map qualified as Map
 import Data.Vector (Vector, findIndices, imap)
-import qualified Data.Vector as Vector
+import Data.Vector qualified as Vector
 import Data.Vector.Generic (findIndexR)
 import Data.Vector.Mutable (read, unsafeWrite, write)
 import Hydra.Logging (Tracer, traceWith)
@@ -203,8 +203,7 @@ reassemble tracer fragments callback = \case
       let (outgoing', acked) = case Map.lookup msgId outgoing of
             Nothing -> (outgoing, []) -- FIXME: this should be an error?
             Just vec ->
-              let (vec', acked) = updateAckIds vec ack
-               in (Map.insert msgId vec' outgoing, acked)
+              first (\v -> Map.insert msgId v outgoing) $ updateAckIds vec ack
       writeTVar fragments $ frags{outgoing = outgoing'}
       pure acked
     traceWith tracer (ReceivedAck msgId acked)
@@ -225,7 +224,7 @@ updateAckIds vec ack =
 acknowledge :: MsgId -> Vector (ByteString, Bool) -> Maybe (Packet ByteString)
 acknowledge msgId vec = do
   maxAck <- findIndexR snd vec
-  let otherAcks = fmap (\i -> maxAck - i) $ findIndices snd $ Vector.take maxAck vec
+  let otherAcks = fmap (maxAck -) $ findIndices snd $ Vector.take maxAck vec
       ackBits = foldl' (\bits i -> (1 .<<. (i - 1)) .|. bits) 0 otherAcks
       ack = maxAck .|. (ackBits .<<. 12)
   pure $ Ack msgId (fromIntegral ack)

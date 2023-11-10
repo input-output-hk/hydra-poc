@@ -14,13 +14,14 @@ import Control.Concurrent.Class.MonadSTM (
  )
 import Control.Monad.IOSim (runSimTrace, traceResult)
 import Data.Aeson (Value (String))
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Base16 as Hex
+import Data.ByteString qualified as BS
+import Data.ByteString.Base16 qualified as Hex
 import Data.Text (unpack)
-import qualified Data.Vector as Vector
+import Data.Vector qualified as Vector
 import Hydra.Network (Network (..))
 import Hydra.Network.Fragment (FragmentLog, Packet (..), acknowledge, updateAckIds, withFragmentHandler)
 import Hydra.Network.ReliabilitySpec (noop)
+import Hydra.Network.UDP (maxPacketSize)
 import System.Random (mkStdGen, uniformR)
 import Test.QuickCheck (
   NonEmptyList (..),
@@ -35,28 +36,27 @@ import Test.QuickCheck (
  )
 import Test.Util (printTrace, traceInIOSim)
 import Text.Show (Show (show))
-import Hydra.Network.UDP (maxPacketSize)
 
 spec :: Spec
 spec = do
   modifyMaxSuccess (const 1000) $
     prop "compute and extract acked fragments are inverse" $ \msgId (NonEmpty boolVec) ->
-      (length boolVec <= 20)
-        ==> let fragmentsVec = Vector.zip (Vector.replicate (length boolVec) "") $ Vector.fromList boolVec
-                allFalse = Vector.replicate (length boolVec) ("", False)
-                packet = acknowledge msgId fragmentsVec
-             in case packet of
-                  Nothing -> property (not $ and boolVec)
-                  Just (Ack mid acks) ->
-                    let updatedAcked = fst $ updateAckIds allFalse acks
-                     in conjoin
-                          [ fragmentsVec === updatedAcked
-                          , mid === msgId
-                          ]
-                  _ ->
-                    property False
-                      & counterexample ("packet: " <> show packet)
-                      & counterexample ("fragments: " <> show fragmentsVec)
+      (length boolVec <= 20) ==>
+        let fragmentsVec = Vector.zip (Vector.replicate (length boolVec) "") $ Vector.fromList boolVec
+            allFalse = Vector.replicate (length boolVec) ("", False)
+            packet = acknowledge msgId fragmentsVec
+         in case packet of
+              Nothing -> property (not $ and boolVec)
+              Just (Ack mid acks) ->
+                let updatedAcked = fst $ updateAckIds allFalse acks
+                 in conjoin
+                      [ fragmentsVec === updatedAcked
+                      , mid === msgId
+                      ]
+              _ ->
+                property False
+                  & counterexample ("packet: " <> show packet)
+                  & counterexample ("fragments: " <> show fragmentsVec)
 
   prop "can send and receive large (< 1MB) messages" $ \(msg :: Msg) seed ->
     let result =

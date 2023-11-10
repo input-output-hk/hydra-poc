@@ -8,9 +8,9 @@ import Hydra.Prelude
 
 import Codec.CBOR.Read (deserialiseFromBytes)
 import Codec.CBOR.Write (toStrictByteString)
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy as LBS
-import qualified Data.IP as IP
+import Data.ByteString qualified as BS
+import Data.ByteString.Lazy qualified as LBS
+import Data.IP qualified as IP
 import Data.Text (unpack)
 import Hydra.Logging (Tracer, traceWith)
 import Hydra.Network (Host (..), Network (..), NetworkCallback, NetworkComponent)
@@ -29,9 +29,13 @@ import Network.Socket.ByteString (recvFrom, sendTo)
 
 type PeersResolver m msg = (msg -> m [Host])
 
+data UDPMsg msg = UDPMsg {host :: Maybe Host, payload :: msg}
+  deriving stock (Eq, Show, Ord, Generic)
+  deriving anyclass (ToJSON, FromJSON)
+
 data UDPLog msg
-  = UDPSent msg Int (Maybe Host)
-  | UDPReceived msg (Maybe Host)
+  = UDPSent {msg :: UDPMsg msg, size :: Int}
+  | UDPReceived {msg :: UDPMsg msg}
   deriving stock (Eq, Show, Generic)
   deriving anyclass (ToJSON, FromJSON)
 
@@ -40,43 +44,35 @@ withUDPNetwork ::
   Tracer IO (UDPLog msg) ->
   -- | The address to bind the server on.
   Host ->
-  -- | An `IO` action to "resolve" the peers to send a message to.
-  PeersResolver IO msg ->
-  NetworkComponent IO msg msg a
-withUDPNetwork tracer localhost peersResolver callback action = do
+  NetworkComponent IO (UDPMsg msg) (UDPMsg msg) a
+withUDPNetwork tracer localhost callback action = do
   sock <- createSocket localhost
-  withBaseUDPNetwork tracer sock peersResolver callback action
+  withBaseUDPNetwork tracer sock callback action
 
 withBaseUDPNetwork ::
   (FromCBOR msg, ToCBOR msg) =>
   Tracer IO (UDPLog msg) ->
   Socket ->
-  PeersResolver IO msg ->
-  NetworkComponent IO msg msg a
-withBaseUDPNetwork tracer sock peersResolver callback action =
+  NetworkComponent IO (UDPMsg msg) (UDPMsg msg) a
+withBaseUDPNetwork tracer sock callback action =
   withAsync (udpServer tracer sock callback) $ \_ ->
-    action (udpClient tracer sock peersResolver)
+    action (udpClient tracer sock)
 
 udpClient ::
-  (ToCBOR msg) =>
+  ToCBOR msg =>
   Tracer IO (UDPLog msg) ->
   Socket ->
-  PeersResolver IO msg ->
-  Network IO msg
-udpClient tracer sock peersResolver =
-  Network $ \msg ->
-    let payload = toStrictByteString $ toCBOR msg
-     in peersResolver msg >>= traverse_ (sendUDP msg payload)
+  Network IO (UDPMsg msg)
+udpClient tracer sock =
+  Network sendUDP
  where
-  sendUDP msg payload Host{hostname, port} = do
-    addrinfos <- getAddrInfo Nothing (Just $ unpack hostname) (Just $ show port)
+  sendUDP msg@UDPMsg{host, payload} = do
+    let bytes = toStrictByteString $ toCBOR payload
+    addrinfos <- getAddrInfo Nothing (unpack . hostname <$> host) (show . port <$> host)
     case addrinfos of
       ((addrAddress -> remoteAddr) : _) -> do
-        -- TODO: chunk the payload if too large. In theory, UDP messages can be several
-        -- 10s of KBs large but in practice, routers can drop messages larger than ~512 bytes
-        -- so it's necessary to chunk and reassemble larger messages.
-        void $ sendTo sock payload remoteAddr
-        traceWith tracer (UDPSent msg (BS.length payload) (fromSockAddr remoteAddr))
+        void $ sendTo sock bytes remoteAddr
+        traceWith tracer (UDPSent msg (BS.length bytes))
       _ -> error "TODO: what if address is not resolved"
 
 -- | Maximum size of packets to send.
@@ -86,10 +82,10 @@ maxPacketSize = 1200
 
 udpServer ::
   forall msg.
-  (FromCBOR msg) =>
+  FromCBOR msg =>
   Tracer IO (UDPLog msg) ->
   Socket ->
-  NetworkCallback msg IO ->
+  NetworkCallback (UDPMsg msg) IO ->
   IO ()
 udpServer tracer sock callback = do
   forever receiveMsg
@@ -98,7 +94,12 @@ udpServer tracer sock callback = do
     (bytes, from) <- recvFrom sock maxPacketSize
     case deserialiseFromBytes (fromCBOR @msg) (LBS.fromStrict bytes) of
       Left err -> error $ "TODO: handle error: " <> show err
-      Right (_, msg) -> traceWith tracer (UDPReceived msg (fromSockAddr from)) >> callback msg
+      Right (_, msg) ->
+        let
+          host = fromSockAddr from
+          udpMessage = UDPMsg{host, payload = msg}
+         in
+          traceWith tracer (UDPReceived udpMessage) >> callback udpMessage
 
 fromSockAddr :: SockAddr -> Maybe Host
 fromSockAddr addr =
