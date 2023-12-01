@@ -132,11 +132,23 @@ instance FromJSON Tx where
 
 instance Arbitrary Tx where
   -- TODO: shrinker!
-  arbitrary = fromLedgerTx . withoutProtocolUpdates <$> arbitrary
-   where
-    withoutProtocolUpdates tx@(Ledger.AlonzoTx body _ _ _) =
-      let body' = body{Ledger.btbUpdate = SNothing}
-       in tx{Ledger.body = body'}
+  arbitrary = genTx
+
+-- | Generate a transaction which may not be correctly signed.
+genTx :: Gen Tx
+genTx = fromLedgerTx . withoutProtocolUpdates <$> arbitrary
+ where
+  withoutProtocolUpdates tx@(Ledger.AlonzoTx body _ _ _) =
+    let body' = body{Ledger.btbUpdate = SNothing}
+     in tx{Ledger.body = body'}
+
+-- | Generate a transaction that is signed by exactly one valid witness.
+genTxSigned :: Gen Tx
+genTxSigned = do
+  draftTx <- genTx
+  key <- genSigningKey
+  let Tx body _ = draftTx
+  pure $ signShelleyTransaction body [WitnessPaymentKey key]
 
 -- | Create a zero-fee, payment cardano transaction.
 mkSimpleTx ::

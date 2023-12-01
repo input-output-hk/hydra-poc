@@ -8,6 +8,7 @@ import Test.Hydra.Prelude
 
 import Cardano.Binary (decodeFull, serialize')
 import Cardano.Ledger.Credential (Credential (..))
+import Cardano.Ledger.Shelley.Rules (validateVerifiedWits)
 import Data.Aeson (eitherDecode, encode)
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Lens (key)
@@ -22,6 +23,7 @@ import Hydra.Ledger.Cardano (
   genOneUTxOFor,
   genSequenceOfSimplePaymentTransactions,
   genTxOut,
+  genTxSigned,
   genUTxOAdaOnlyOfSize,
   genUTxOAlonzo,
   genUTxOFor,
@@ -92,6 +94,9 @@ spec =
       propDoesNotCollapse "genUTxOAdaOnlyOfSize" (sized genUTxOAdaOnlyOfSize)
       propCollisionResistant "genUTxOFor" (genUTxOFor (arbitrary `generateWith` 42))
       propCollisionResistant "genOneUTxOFor" (genOneUTxOFor (arbitrary `generateWith` 42))
+      describe "genTxSigned" $
+        it "produces valid transactions" $
+          forAll genTxSigned (\x -> mempty === validateVerifiedWits (toLedgerTx x))
 
       describe "genTxOut" $
         it "does generate good values" $
