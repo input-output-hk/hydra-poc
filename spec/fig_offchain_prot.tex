@@ -47,7 +47,7 @@
 							$\Uinit \gets \bigcup_{j=1}^{n} U_j$ \;
 							% $\Out~(\hpSnap,(0,U_0))$ \;
 							$\hatmU, \barmU, \hatmL \gets \Uinit$ \;
-							\textcolor{red}{$\mathcal{U}_{\omega} \gets \bot$ \;}
+							\textcolor{red}{$\tx_{\omega} \gets \bot$ \;}
 							$\hats,\bars \gets 0$ \;
 							$\mT, \hatmT, \barmT \gets \emptyset$ \;
 						}
@@ -81,7 +81,7 @@
 								% issue snapshot if we are leader
 								\If{$\hats = \bars \land \hpLdr(\bars + 1) = i$}{
                                     $\textcolor{blue}{\mT^{\#}_{req} \gets \{ \hash(\tx) ~ | ~ \forall tx \in \hatmT \}}$ \;
-									\Multi{} $(\hpRS,\bars+1, \textcolor{blue}{\mT^{\#}_{req}}, \textcolor{red}{\mathcal{U}_{\omega}})$ \;
+									\Multi{} $(\hpRS,\bars+1, \textcolor{blue}{\mT^{\#}_{req}}, \textcolor{red}{\tx_{\omega}})$ \;
 								}
 							}
 						}
@@ -102,12 +102,12 @@
 						%%% REC DEC
 						\On{$(\mathtt{reqDec},\tx)$ from $\party_j$}{
 						    \textcolor{red}{
-							\Wait{$\mathcal{U}_\omega = \bot ~ \land ~ \barmU \applytx \tx \not= \bot$}{
-								$\mathcal{U}_\omega \gets \barmU \applytx \tx$ \;
+							\Wait{$\tx_\omega = \bot ~ \land ~ \barmU \applytx \tx \not= \bot$}{
+								$\tx_\omega \gets \tx$ \;
 								% issue snapshot if we are leader
 								\If{$\hats = \bars \land \hpLdr(\bars + 1) = i$}{
 									$\textcolor{blue}{\mT^{\#}_{req} \gets \{ \hash(\tx) ~ | ~ \forall tx \in \hatmT \}}$ \;
-									\Multi{} $(\hpRS,\bars+1,\mT^{\#}_{req}, \mathcal{U}_{\omega})$ \;
+									\Multi{} $(\hpRS,\bars+1,\mT^{\#}_{req}, \tx_{\omega})$ \;
 								}
 							}
 							}
@@ -116,10 +116,10 @@
 						\vspace{12pt}
 
 						%%% DECREMENT
-						\On{$(\mathtt{decrementTx}, U_{\omega}, \eta_{\omega})$ from chain}{
+						\On{$(\mathtt{decrementTx}, U_{\omega})$ from chain}{
 						    \textcolor{red}{
-							\If{$\mathcal{U}_{\omega} = U_{\omega}$}{
-								$\mathcal{U}_{\omega} \gets \bot$ \;
+							\If{$\mathsf{outputs}(\tx_{\omega}) = U_{\omega}$}{
+								$\tx_{\omega} \gets \bot$ \;
 							}
 							}
 						}
@@ -129,11 +129,12 @@
 				\adjustbox{valign=t,scale=\sfact}{
 					\begin{walgo}{0.7}
 						%%% REQ SN
-						\On{$(\hpRS,s,\mT^{\#}_{req}, \textcolor{red}{\mathcal{U}_{\omega}})$ from $\party_j$}{
+						\On{$(\hpRS,s,\mT^{\#}_{req}, \textcolor{red}{\tx_{\omega}})$ from $\party_j$}{
 							\Req{$s = \hats + 1 ~ \land ~ \hpLdr(s) = j$} \;
-							\textcolor{red}{\Req{$\barmU \supseteq \mathcal{U}_{\omega}$}} \;
 							\Wait{$\bars = \hats ~ \land ~ \forall h \in  \mT^{\#}_{req} : (h, \cdot) \in \mT_{\mathsf{all}}$}{
 								$\mT_{\mathsf{req}} \gets \{ \mT_{\mathsf{all}}[h] ~ | ~ \forall h \in \mT^{\#}_{req} \}$ \;
+							    \textcolor{red}{\Req{$\barmU \applytx \tx_{\omega} \not= \bot$}} \;
+								\textcolor{red}{$\mathcal{U_{\omega}} \gets \mathsf{outputs}(\tx_{\omega})$} \;
 								\textcolor{red}{$\barmU_{\mathsf{active}} \gets \barmU \setminus \mathcal{U}_{\omega}$} \;
 								\Req{$\textcolor{red}{\barmU_{\mathsf{active}}} \applytx \mT_{\mathsf{req}} \not= \bot$} \;
 								$\hatmU \gets \textcolor{red}{\barmU_{\mathsf{active}}} \applytx \mT_{\mathsf{req}}$ \;
@@ -167,22 +168,23 @@
 							\Req{} $s \in \{\hats,\hats+1\}$ \;
 							\Wait{$\hats=s$}{
 								\Req{} $(j, \cdot) \notin \hatSigma$ \;
+							    % FIXME: missing a write to \hatSigma
 								\If{$\forall k \in [1..n]: (k,\cdot) \in \hatSigma$}{
 									% TODO: MS-ASig used different than in the preliminaries
 									$\msCSig \gets \msComb(\hydraKeys^{setup}, \hatSigma)$ \;
 
 									$\eta' \gets (\hats, \combine(\hatmU))$ \;
-									% TODO: U_ω undefined (else) case
+									% TODO: tx_ω undefined (else) case
+								    \textcolor{red}{$\mathcal{U_{\omega}} \gets \mathsf{outputs}(\tx_{\omega})$} \;
 								    $\textcolor{red}{\eta_{\omega} \gets \combine(\mathcal{U}_{\omega})}$ \;
 
 									% TODO: \eta_0 signing still needed?
 									\Req{} $\msVfy(\hydraKeysAgg, (\cid || \textcolor{red}{\eta_{0} ||} \eta' || \textcolor{red}{\eta_{\omega}}), \msCSig)$ \;
-
-									$\textcolor{red}{\PostTx{}~(\mathtt{decrementTx}, \eta', \eta_{\omega})}$ \;
-
 									$\barmU \gets \hatmU$ \;
 									$\bars \gets \hats$ \;
 									$\barsigma \gets \msCSig$ \;
+
+									$\textcolor{red}{\PostTx{}~(\mathtt{decrementTx}, \eta', \eta_{\omega})}$ \;
 									%$\Out~(\hpSnap,(\bars,\barmU))$ \;
 									$\forall \tx \in \mT_{\mathsf{req}} : \Out (\hpConf,\tx)$ \;
 
@@ -190,7 +192,7 @@
 									\If{$\hpLdr(s+1) = i \land \hatmT \neq \emptyset$}{
 									    % TODO: wasteful as we re-request U_ω?
 										$\textcolor{blue}{\mT^{\#}_{req} \gets \{ \hash(\tx) ~ | ~ \forall tx \in \hatmT \}}$ \;
-										\Multi{} $(\hpRS,s+1, \textcolor{blue}{\mT^{\#}_{req}}, \textcolor{red}{\mathcal{U}_{\omega}})$ \;
+										\Multi{} $(\hpRS,s+1, \textcolor{blue}{\mT^{\#}_{req}}, \textcolor{red}{\tx_{\omega}})$ \;
 									}
 								}
 							}
