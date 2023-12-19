@@ -80,7 +80,8 @@
 								$\hatmT \gets \hatmT \cup \{\tx\}$ \;
 								% issue snapshot if we are leader
 								\If{$\hats = \bars \land \hpLdr(\bars + 1) = i$}{
-									\Multi{} $(\hpRS,\bars+1,\hatmT, \textcolor{red}{\mathcal{U}_{\omega}})$ \;
+                                    $\textcolor{blue}{\mT^{\#}_{req} \gets \{ \hash(\tx) ~ | ~ \forall tx \in \hatmT \}}$ \;
+									\Multi{} $(\hpRS,\bars+1, \textcolor{blue}{\mT^{\#}_{req}}, \textcolor{red}{\mathcal{U}_{\omega}})$ \;
 								}
 							}
 						}
@@ -90,6 +91,7 @@
 						%%% DECOMMIT
 						\On{$(\mathtt{decommit},\tx)$ from client}{
 						    \textcolor{red}{
+							% TODO: check U_\omega is bottom to not have multiple in-flight?
 							\Req{$\barmU \applytx \tx \not= \bot$} \;
 							\Multi{} $(\mathtt{reqDec},\tx)$%
 							}
@@ -104,7 +106,8 @@
 								$\mathcal{U}_\omega \gets \barmU \applytx \tx$ \;
 								% issue snapshot if we are leader
 								\If{$\hats = \bars \land \hpLdr(\bars + 1) = i$}{
-									\Multi{} $(\hpRS,\bars+1,\hatmT, \mathcal{U}_{\omega})$ \;
+									$\textcolor{blue}{\mT^{\#}_{req} \gets \{ \hash(\tx) ~ | ~ \forall tx \in \hatmT \}}$ \;
+									\Multi{} $(\hpRS,\bars+1,\mT^{\#}_{req}, \mathcal{U}_{\omega})$ \;
 								}
 							}
 							}
@@ -186,7 +189,8 @@
 									% issue snapshot if we are leader
 									\If{$\hpLdr(s+1) = i \land \hatmT \neq \emptyset$}{
 									    % TODO: wasteful as we re-request U_ω?
-										\Multi{} $(\hpRS,s+1,\hatmT, \textcolor{red}{\mathcal{U}_{\omega}})$ \;
+										$\textcolor{blue}{\mT^{\#}_{req} \gets \{ \hash(\tx) ~ | ~ \forall tx \in \hatmT \}}$ \;
+										\Multi{} $(\hpRS,s+1, \textcolor{blue}{\mT^{\#}_{req}}, \textcolor{red}{\mathcal{U}_{\omega}})$ \;
 									}
 								}
 							}
