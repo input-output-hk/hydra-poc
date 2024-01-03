@@ -28,13 +28,13 @@ import Hydra.Cardano.Api (
   Block (..),
   BlockInMode (..),
   CardanoEra (BabbageEra),
-  CardanoMode,
   ChainPoint,
   ChainTip,
   ConsensusModeParams (..),
   EpochSlots (..),
   EraHistory (EraHistory),
   EraInMode (..),
+  IsShelleyBasedEra (..),
   LocalChainSyncClient (..),
   LocalNodeClientProtocols (..),
   LocalNodeConnectInfo (..),
@@ -43,7 +43,7 @@ import Hydra.Cardano.Api (
   SocketPath,
   Tx,
   TxInMode (..),
-  TxValidationErrorInMode,
+  TxValidationErrorInCardanoMode,
   chainTipToChainPoint,
   connectToLocalNode,
   getTxBody,
@@ -154,8 +154,8 @@ mkTinyWallet tracer config = do
     epochInfo <- queryEpochInfo
     pure $ WalletInfoOnChain{walletUTxO, pparams, systemStart, epochInfo, tip = point}
 
-  toEpochInfo :: EraHistory CardanoMode -> EpochInfo (Either Text)
-  toEpochInfo (EraHistory _ interpreter) =
+  toEpochInfo :: EraHistory -> EpochInfo (Either Text)
+  toEpochInfo (EraHistory interpreter) =
     hoistEpochInfo (first show . runExcept) $
       Consensus.interpreterToEpochInfo interpreter
 
@@ -271,7 +271,7 @@ instance Exception ChainClientException where
       printf "Received blocks in unsupported era %s. Please upgrade your hydra-node to era %s." otherEraName ledgerEraName
 
 -- | The block type used in the node-to-client protocols.
-type BlockType = BlockInMode CardanoMode
+type BlockType = BlockInMode
 
 chainSyncClient ::
   forall m.
@@ -308,13 +308,13 @@ chainSyncClient handler wallet startingPoint =
     ClientStNext
       { recvMsgRollForward = \blockInMode _tip -> ChainSyncClient $ do
           case blockInMode of
-            BlockInMode _ (Block header txs) BabbageEraInCardanoMode -> do
+            BlockInMode BabbageEra (Block header txs) -> do
               -- Update the tiny wallet
               update wallet header txs
               -- Observe Hydra transactions
               onRollForward handler header txs
               pure clientStIdle
-            BlockInMode _ block ConwayEraInCardanoMode -> do
+            BlockInMode ConwayEra block -> do
               -- TODO: uses cardano-api:internal
               -- NOTE: we should remove this dependency once we have ShelleyBlock available
               -- on the normal cardano-api library.
@@ -332,7 +332,7 @@ chainSyncClient handler wallet startingPoint =
               -- Observe Hydra transactions
               onRollForward handler header txs
               pure clientStIdle
-            (BlockInMode era _ _) -> throwIO $ EraNotSupportedException{ledgerEraName = show era, otherEraName = show BabbageEra}
+            (BlockInMode era _) -> throwIO $ EraNotSupportedException{ledgerEraName = show era, otherEraName = show BabbageEra}
       , recvMsgRollBackward = \point _tip -> ChainSyncClient $ do
           -- Re-initialize the tiny wallet
           reset wallet
@@ -346,18 +346,18 @@ txSubmissionClient ::
   (MonadSTM m, MonadDelay m) =>
   Tracer m DirectChainLog ->
   TQueue m (Tx, TMVar m (Maybe (PostTxError Tx))) ->
-  LocalTxSubmissionClient (TxInMode CardanoMode) (TxValidationErrorInMode CardanoMode) m ()
+  LocalTxSubmissionClient TxInMode TxValidationErrorInCardanoMode m ()
 txSubmissionClient tracer queue =
   LocalTxSubmissionClient clientStIdle
  where
-  clientStIdle :: m (LocalTxClientStIdle (TxInMode CardanoMode) (TxValidationErrorInMode CardanoMode) m ())
+  clientStIdle :: m (LocalTxClientStIdle TxInMode TxValidationErrorInCardanoMode m ())
   clientStIdle = do
     (tx, response) <- atomically $ readTQueue queue
     let txId = getTxId $ getTxBody tx
     traceWith tracer PostingTx{txId}
     pure $
       SendMsgSubmitTx
-        (TxInMode tx BabbageEraInCardanoMode)
+        (TxInMode shelleyBasedEra tx)
         ( \case
             SubmitSuccess -> do
               traceWith tracer PostedTx{txId}

@@ -169,9 +169,6 @@ instance Ledger.Crypto crypto => FromJSON (Ledger.BootstrapWitness crypto) where
 -- TODO: Delegation certificates can actually be represented as plain JSON
 -- objects (it's a sum type), so we may want to revisit this interface later?
 
-instance Ledger.Era era => ToJSON (Ledger.ShelleyTxCert era) where
-  toJSON = String . decodeUtf8 . Base16.encode . serialize' (eraProtVerLow @era)
-
 instance
   ( Ledger.ShelleyEraTxCert era
   , Ledger.TxCert era ~ Ledger.ShelleyTxCert era

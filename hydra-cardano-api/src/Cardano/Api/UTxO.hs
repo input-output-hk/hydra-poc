@@ -87,7 +87,7 @@ min = UTxO . uncurry Map.singleton . Map.findMin . toMap
 -- * Type Conversions
 
 -- | Transforms a UTxO containing tx outs from any era into Babbage era.
-fromApi :: Cardano.Api.UTxO era -> UTxO
+fromApi :: forall era. IsShelleyBasedEra era => Cardano.Api.UTxO era -> UTxO
 fromApi (Cardano.Api.UTxO eraUTxO) =
   let eraPairs = Map.toList eraUTxO
       babbagePairs = second coerceOutputToEra <$> eraPairs
@@ -105,8 +105,8 @@ fromApi (Cardano.Api.UTxO eraUTxO) =
   coerceAddressToEra (AddressInEra _ eraAddress) = anyAddressInShelleyBasedEra ShelleyBasedEraBabbage (toAddressAny eraAddress)
 
   coerceValueToEra :: TxOutValue era -> TxOutValue Era
-  coerceValueToEra (TxOutAdaOnly _ eraLovelace) = lovelaceToTxOutValue BabbageEra eraLovelace
-  coerceValueToEra (TxOutValue _ value) = TxOutValue MaryEraOnwardsBabbage value
+  coerceValueToEra (TxOutValueByron eraLovelace) = lovelaceToTxOutValue shelleyBasedEra eraLovelace
+  coerceValueToEra (TxOutValueShelleyBased _ value) = TxOutValueShelleyBased ShelleyBasedEraBabbage (toLedgerValue MaryEraOnwardsBabbage $ fromLedgerValue (shelleyBasedEra @era) value)
 
   coerceDatumToEra :: TxOutDatum CtxUTxO era -> TxOutDatum CtxUTxO Era
   coerceDatumToEra TxOutDatumNone = TxOutDatumNone
