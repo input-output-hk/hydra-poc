@@ -237,7 +237,8 @@ $\redeemerHead = \mathsf{collect}$ and checks:
 
 \subsection{Increment Transaction}\label{sec:increment-tx}
 
-\noindent The increment transaction allows a party to add a UTxO to an already open head.
+\noindent The \mtxIncrement{} transaction (Figure~\ref{fig:incrementTx}) allows
+a party to add a UTxO to an already open head and consists of:
 
 \begin{itemize}
 	\item one input spending from $\nuHead$ holding the $\st$ with $\datumHead$,
@@ -266,6 +267,11 @@ stay unchanged and the new state is governed again by $\nuHead$:
 	$\valHead' \supseteq \valHead \cup (\bigcup_{j=1}^{m} \val_{\mathsf{committed}_{j}})$
 \end{menumerate}
 
+\begin{figure}[h] \centering
+	\includegraphics[width=0.8\textwidth]{figures/incrementTx.pdf}
+	\caption{\mtxIncrement{} transaction spending an open head output and a single
+		committed output, and producing a new head output.}\label{fig:incrementTx}
+\end{figure}
 
 \subsection{Abort Transaction}\label{sec:abort-tx}
 
