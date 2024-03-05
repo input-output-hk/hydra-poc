@@ -235,6 +235,38 @@ $\redeemerHead = \mathsf{collect}$ and checks:
 		$\stOpen$ head output.}\label{fig:collectComTx}
 \end{figure}
 
+\subsection{Increment Transaction}\label{sec:increment-tx}
+
+\noindent The increment transaction allows a party to add a UTxO to an already open head.
+
+\begin{itemize}
+	\item one input spending from $\nuHead$ holding the $\st$ with $\datumHead$,
+	\item one or more inputs with reference $\txOutRef_{\mathsf{committed}_{j}}$
+	      spending output $o_{\mathsf{committed}_{j}}$ with
+	      $\val_{\mathsf{committed}_{j}}$,
+	\item one output paying to $\nuHead$ with value $\valHead'$ and
+	      datum $\datumHead'$.
+\end{itemize}
+
+\noindent The state-machine validator $\nuHead$ is spent with
+$\redeemerHead = (\mathsf{increment}, \xi)$, where $\xi$ is a multi-signature of
+the increment snapshot which authorizes addition of some UTxO $U_\alpha$, and checks:
+\begin{menumerate}
+  \item State is advanced from $\datumHead \sim \stOpen$ to
+$\datumHead' \sim \stOpen$, parameters $\cid,\hydraKeysAgg,\nop,\cPer$
+stay unchanged and the new state is governed again by $\nuHead$:
+  \[
+	(\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,\eta) \xrightarrow[\xi]{\mathsf{increment}} (\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,\eta')
+  \]
+	\item Increment snapshot is newer $s' > s$, where $(s, \cdot) = \eta$ is the
+		current and $(s', \cdot) = \eta'$ is the incremented snapshot number.
+	\item $\xi$ is a valid multi-signature of the new snapshot state
+    $\msVfy(\hydraKeysAgg,(\cid || \textcolor{red}{\eta_{0}} || \eta'),\xi) = \true$.
+  \item \todo{Need to ensure all value of $U_\alpha$ is captured} All committed value is in the output
+	$\valHead' \supseteq \valHead \cup (\bigcup_{j=1}^{m} \val_{\mathsf{committed}_{j}})$
+\end{menumerate}
+
+
 \subsection{Abort Transaction}\label{sec:abort-tx}
 
 The \mtxAbort{} transaction (see Figure~\ref{fig:abortTx}) allows a
