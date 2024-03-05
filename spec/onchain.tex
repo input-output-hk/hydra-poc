@@ -263,7 +263,7 @@ stay unchanged and the new state is governed again by $\nuHead$:
 		current and $(s', \cdot) = \eta'$ is the incremented snapshot number.
 	\item $\xi$ is a valid multi-signature of the new snapshot state
     $\msVfy(\hydraKeysAgg,(\cid || \textcolor{red}{\eta_{0}} || \eta'),\xi) = \true$.
-  \item \todo{Need to ensure all value of $U_\alpha$ is captured} All committed value is in the output
+  \item \todo{Need to ensure all value of $U_\alpha$ is captured! Right now, this could be attached with $\txOutRef_{\mathsf{committed}} = []$} All committed value is in the output
 	$\valHead' \supseteq \valHead \cup (\bigcup_{j=1}^{m} \val_{\mathsf{committed}_{j}})$
 \end{menumerate}
 
