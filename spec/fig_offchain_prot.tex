@@ -35,7 +35,7 @@
 							$C_j \gets U $
 
 							\If{$\forall k \in [1..n]: C_k \neq \undefined$}{
-								$\eta \gets (0, \combine([C_1 \dots C_n]))$ \;
+								$\eta \gets \combine([C_1 \dots C_n])$ \;
 								$\PostTx{}~(\mtxCCom, \eta)$ \;
 							}
 						}
@@ -101,12 +101,14 @@
 						\On{$(\mathtt{reqDec},\tx)$ from $\party_j$}{
 						    \textcolor{red}{
 							\Wait{$\tx_\omega = \bot ~ \land ~ \barmU \applytx \tx \not= \bot$}{
+							  \textcolor{black}{
 								$\tx_\omega \gets \tx$ \;
 								% issue snapshot if we are leader
 								\If{$\hats = \bars \land \hpLdr(\bars + 1) = i$}{
 									$\textcolor{blue}{\mT^{\#}_{req} \gets \{ \hash(\tx) ~ | ~ \forall tx \in \hatmT \}}$ \;
-									\Multi{} $(\hpRS,\bars+1,\mT^{\#}_{req}, \tx_{\omega})$ \;
+									\Multi{} $(\hpRS,\bars+1,\mT^{\#}_{req}, \textcolor{blue}{\tx})$ \;
 								}
+							  }
 							}
 							}
 						}
@@ -132,17 +134,17 @@
 							\Wait{$\bars = \hats ~ \land ~ \forall h \in  \mT^{\#}_{req} : (h, \cdot) \in \mT_{\mathsf{all}}$}{
 								$\mT_{\mathsf{req}} \gets \{ \mT_{\mathsf{all}}[h] ~ | ~ \forall h \in \mT^{\#}_{req} \}$ \;
 							    \textcolor{red}{\Req{$\barmU \applytx \tx_{\omega} \not= \bot$}} \;
-								\textcolor{red}{$\mathcal{U_{\omega}} \gets \mathsf{outputs}(\tx_{\omega})$} \;
-								\textcolor{red}{$\barmU_{\mathsf{active}} \gets \barmU \setminus \mathcal{U}_{\omega}$} \;
+							    \textcolor{red}{$\barmU_{\mathsf{active}} \gets \barmU \applytx \tx_{\omega}$} \;
 								\Req{$\textcolor{red}{\barmU_{\mathsf{active}}} \applytx \mT_{\mathsf{req}} \not= \bot$} \;
 								$\hatmU \gets \textcolor{red}{\barmU_{\mathsf{active}}} \applytx \mT_{\mathsf{req}}$ \;
 								$\hats \gets \bars + 1$ \;
-                                % TODO: eta without snapshot number
-								$\eta' \gets (\hats, \combine(\hatmU))$ \;
-								$\textcolor{red}{\eta_{\omega} \gets \combine(\mathcal{U}_{\omega})}$ \;
+								\textcolor{red}{$\eta' \gets \combine(\hatmU)$} \;
+								% TODO: hanwavy combine/outputs here
+								$\textcolor{red}{\eta_{\omega} \gets \combine(\mathsf{outputs}(\tx_{\omega}))}$ \;
 								% NOTE: WE could make included transactions auditable by adding
 								% a merkle tree root to the (signed) snapshot data \eta'
-								$\msSig_i \gets \msSign(\hydraSigningKey, (\cid || \textcolor{red}{\eta_{0} ||} \eta' || \textcolor{red}{\eta_{\omega}}))$ \;
+								% TODO: sign \eta_{0} / previous state?
+								$\msSig_i \gets \msSign(\hydraSigningKey, (\cid || \textcolor{red}{\hats || \eta' || \eta_{\omega}}))$ \;
 								$\hatSigma \gets \emptyset$ \;
 								$\Multi{}~(\hpAS,\hats,\msSig_i)$ \;
 								$\forall \tx \in \mT_{\mathsf{req}}: \Out~(\hpSeen,\tx)$ \;
@@ -171,18 +173,17 @@
 									% TODO: MS-ASig used different than in the preliminaries
 									$\msCSig \gets \msComb(\hydraKeys^{setup}, \hatSigma)$ \;
 
-									$\eta' \gets (\hats, \combine(\hatmU))$ \;
+									$\eta' \gets \combine(\hatmU)$ \;
 									% TODO: tx_ω undefined (else) case
-								    \textcolor{red}{$\mathcal{U_{\omega}} \gets \mathsf{outputs}(\tx_{\omega})$} \;
-								    $\textcolor{red}{\eta_{\omega} \gets \combine(\mathcal{U}_{\omega})}$ \;
+								    $\textcolor{red}{\eta_{\omega} \gets \combine(\mathsf{outputs}(\tx_{\omega}))}$ \;
 
-									% TODO: \eta_0 signing still needed?
-									\Req{} $\msVfy(\hydraKeysAgg, (\cid || \textcolor{red}{\eta_{0} ||} \eta' || \textcolor{red}{\eta_{\omega}}), \msCSig)$ \;
+							      	% TODO: sign \eta_{0} / previous state?
+									\Req{} $\msVfy(\hydraKeysAgg, (\cid || \hats || \eta' || \textcolor{red}{\eta_{\omega}}), \msCSig)$ \;
 									$\barmU \gets \hatmU$ \;
 									$\bars \gets \hats$ \;
 									$\barsigma \gets \msCSig$ \;
 
-									$\textcolor{red}{\PostTx{}~(\mathtt{decrementTx}, \eta', \eta_{\omega})}$ \;
+									$\textcolor{red}{\PostTx{}~(\mathtt{decrementTx}, \hats, \eta', \eta_{\omega})}$ \;
 									%$\Out~(\hpSnap,(\bars,\barmU))$ \;
 									$\forall \tx \in \mT_{\mathsf{req}} : \Out (\hpConf,\tx)$ \;
 
@@ -209,21 +210,20 @@
 					\begin{walgo}{0.6}
 						% CLOSE from client
 						\On{$(\hpClose)$ from client}{
-							$\eta' \gets (\bars, \combine(\barmU))$ \;
+							$\eta' \gets \combine(\barmU)$ \;
 							$\xi \gets \barsigma$ \;
-							$\PostTx{}~(\mtxClose, \eta', \xi)$ \;
+							$\PostTx{}~(\mtxClose, \bars, \eta', \xi)$ \;
 						}
 					\end{walgo}
 				}
 				 &
 				\adjustbox{valign=t,scale=\sfact}{
 					\begin{walgo}{0.6}
-						\On{$(\gcChainClose, \eta) \lor (\gcChainContest, \eta)$ from chain}{
-							$(s_{c}, \cdot) \gets \eta$ \;
+						\On{$(\gcChainClose, \eta) \lor (\gcChainContest, s_{c}, \eta)$ from chain}{
 							\If{$\bars > s_{c}$}{
-								$\eta' \gets (\bars, \combine(\barmU))$ \;
+								$\eta' \gets \combine(\barmU)$ \;
 								$\xi \gets \barsigma$ \;
-								$\PostTx{}~(\mtxContest, \eta', \xi)$ \;
+								$\PostTx{}~(\mtxContest, \bars, \eta', \xi)$ \;
 							}
 						}
 					\end{walgo}
