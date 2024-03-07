@@ -90,10 +90,8 @@
 
 						%%% DECOMMIT
 						\On{$(\mathtt{decommit},\tx)$ from client}{
-						    \textcolor{red}{
-							% TODO: check U_\omega is bottom to not have multiple in-flight?
-							\Req{$\barmU \applytx \tx \not= \bot$} \;
-							\Multi{} $(\mathtt{reqDec},\tx)$%
+							\If{\textcolor{blue}{$\tx_{\omega} = \bot \land \barmU \applytx \tx \not= \bot$}}{
+							  \Multi{} $(\mathtt{reqDec},\tx)$%
 							}
 						}
 
