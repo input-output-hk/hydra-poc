@@ -415,7 +415,7 @@ In order to close a head, a head member may post the \mtxClose{} transaction
 		$\datumHead' \sim \stClosed$, parameters $\cid,\hydraKeysAgg,\nop,\cPer$
 		stay unchanged and the new state is governed again by $\nuHead$:
 		\[
-			(\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,\eta) \xrightarrow[\xi]{\stClose} (\stClosed,\cid,\hydraKeysAgg,\nop,\cPer,\eta_0,\eta',\contesters,\Tfinal)
+			(\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,\eta) \xrightarrow[\xi]{\stClose} (\stClosed,\cid,\hydraKeysAgg,\nop,\cPer,\eta_0,\eta',\textcolor{blue}{\eta_{\omega}},\contesters,\Tfinal)
 		\]
 		\item Records the initial snapshot state $\eta_0 = \eta$. \\
 		This makes off-chain signatures rollback and replay resistant,
@@ -433,6 +433,7 @@ In order to close a head, a head member may post the \mtxClose{} transaction
 		% TODO: η₀ is not yet incorporated
 		and $\eta'$: $\mathsf{msg} = (\cid || \textcolor{red}{\eta_{0} ||} \eta')$.
 		% TODO: detailed CDDL definition of msg
+		\todo{snapshot/msg with pending decommit must work as well}
 		\item Initializes the set of contesters as $\contesters = \emptyset$. \\
 		This allows the closing party to also contest and is required for use
 		cases where pre-signed, valid in the future, close transactions are

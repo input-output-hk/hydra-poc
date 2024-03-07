@@ -18,10 +18,14 @@ reactive system that processes three kinds of inputs:
 		      \item $\hpRT$: to request a transaction to be included in the next snapshot
 		      \item $\hpRS$: to request a snapshot to be created \& signed by every head member
 		      \item $\hpAS$: to acknowledge a snapshot by replying with their signatures
+					\item \texttt{reqInc} \todo{explain}
+					\item \texttt{reqDec} \todo{explain}
 	      \end{itemize}
 	\item Commands issued by the participants themselves or on behalf of end-users and clients
 	      \begin{itemize}
 		      \item $\hpInit$: to start initialization of a head
+		      \item \texttt{commit} to request an incremental commit
+		      \item \texttt{decommit} to request an incremental decommit
 		      \item $\hpNew$: to submit a new transaction to an open head
 		      \item $\hpClose$: to request closure of an open head
 	      \end{itemize}
@@ -94,7 +98,7 @@ off-chain protocol logic relies on these assumptions:
 \subsection{Variables}
 
 Besides parameters agreed in the protocol setup (see Section~\ref{sec:setup}), a
-party's local state consists of the following variables:
+party's local state consists of the following variables: \todo{update}
 
 \begin{itemize}
 	\item $\hats$: Sequence number of latest seen snapshot.
@@ -146,6 +150,7 @@ previously observed $C_j$ and initialize $\hatmU = \barmU = \hatmL = \Uinit$
 with it. The initial transaction sets are empty
 $\mT = \barmT =\hatmT =\emptyset$, and $\bars = \hats = 0$.
 % REVIEW: check $\eta$ against $\Uinit$?
+\todo{add increment/decrement}
 
 \subsubsection{Processing transactions off-chain}
 
