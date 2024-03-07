@@ -190,9 +190,9 @@ $\redeemerHead = \mathsf{collect}$ and checks:
 	$\datumHead' \sim \stOpen$, parameters $\cid,\hydraKeysAgg,\nop,\cPer$ stay
 	unchanged and the new state is governed again by $\nuHead$:
 	\[
-		(\stInitial,\cid,\seed,\hydraKeysAgg,\nop,\cPer) \xrightarrow{\stCollect} (\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,\eta)
+		(\stInitial,\cid,\seed,\hydraKeysAgg,\nop,\cPer) \xrightarrow{\stCollect} (\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,\textcolor{blue}{s}, \eta)
 	\]
-	\item Commits collected in $\eta = (0, U^{\#})$ with snapshot number $0$,
+	\item Commits collected in $\eta = U^{\#}$ with snapshot number $0$,
 	where
 	\[
 		U^{\#} = \combine([C_{1}, \dots, C_{\nop}])
@@ -257,13 +257,13 @@ the increment snapshot which authorizes addition of some UTxO $U_\alpha$, and ch
 	$\datumHead' \sim \stOpen$, parameters $\cid,\hydraKeysAgg,\nop,\cPer$
 	stay unchanged and the new state is governed again by $\nuHead$:
 	\[
-		(\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,\eta) \xrightarrow[\xi]{\mathsf{increment}} (\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,\eta')
+		(\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,s,\eta) \xrightarrow[\xi]{\mathsf{increment}} (\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,s', \eta')
 	\]
-	\item Increment snapshot is newer $s' > s$, where $(s, \cdot) = \eta$ is the
-	current and $(s', \cdot) = \eta'$ is the incremented snapshot number.
+	\item Increment snapshot number is newer $s' > s$, where $s$ is the
+	currently stored and $s'$ the snapshot number of the increment snapshot.
 	\item $\xi$ is a valid multi-signature of the new snapshot state
-	$\msVfy(\hydraKeysAgg,(\cid || \textcolor{red}{\eta_{0}} || \eta'),\xi) = \true$.
-	\item \todo{Need to ensure all value of $U_\alpha$ is captured! Right now, this could be attached with $\txOutRef_{\mathsf{committed}} = []$} \textcolor{red}{All committed value is in the output
+	$\msVfy(\hydraKeysAgg,(\cid || s' || \textcolor{red}{\eta_{0}} || \eta'),\xi) = \true$. \todo{$\eta_{0}$ replacement}
+	\item \todo{Need to ensure all value of $U_\alpha$ is captured! Right now, this could be attacked with $\txOutRef_{\mathsf{committed}} = []$} \textcolor{red}{All committed value is in the output
 		$\valHead' \supseteq \valHead \cup (\bigcup_{j=1}^{m} \val_{\mathsf{committed}_{j}})$}
 
 	\item Transaction is signed by a participant $\exists \{\cid \mapsto \keyHash_{i} \mapsto 1\} \in \valHead' \Rightarrow \keyHash_{i} \in \txKeys$.
@@ -298,15 +298,16 @@ the number of outputs to reimburse. The validator checks:
 	$\datumHead' \sim \stOpen$, parameters $\cid,\hydraKeysAgg,\nop,\cPer$ stay
 	unchanged and the new state is governed again by $\nuHead$:
 	\[
-		(\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,\eta) \xrightarrow[\xi]{\mathsf{decrement}} (\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,\eta')
+		(\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,s,\eta) \xrightarrow[\xi]{\mathsf{decrement}} (\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,s',\eta')
 	\]
-	\item The decrement snapshot is newer $s' > s$, where $(s, \cdot) = \eta$ is the
-	current and $(s', \cdot) = \eta'$ is the decremented snapshot number.
+	\item Decrement snapshot number is newer $s' > s$, where $s$ is the
+	currently stored and $s'$ the snapshot number of the decrement snapshot.
 	\item $\xi$ is a valid multi-signature of the new snapshot state $\eta'$ and the
 	removed UTxOs
 	\[
-		\msVfy(\hydraKeysAgg,(\cid || \textcolor{red}{\eta_{0}} || \eta' || U^{\#}_{\omega}),\xi) = \true
+		\msVfy(\hydraKeysAgg,(\cid || s' || \textcolor{red}{\eta_{0} || \eta' || U^{\#}_{\omega}}),\xi) = \true
 	\]
+  \todo{$\eta_{0}$ replacement}
 	where
 	\[
 		U^{\#}_{\omega}  = \hash(\bigoplus_{j=1}^{m} \bytes(o_{j}))
@@ -415,14 +416,14 @@ In order to close a head, a head member may post the \mtxClose{} transaction
 		$\datumHead' \sim \stClosed$, parameters $\cid,\hydraKeysAgg,\nop,\cPer$
 		stay unchanged and the new state is governed again by $\nuHead$:
 		\[
-			(\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,\eta) \xrightarrow[\xi]{\stClose} (\stClosed,\cid,\hydraKeysAgg,\nop,\cPer,\eta_0,\eta',\textcolor{blue}{\eta_{\omega}},\contesters,\Tfinal)
+			(\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,s,\eta) \xrightarrow[\xi]{\stClose} (\stClosed,\cid,\hydraKeysAgg,\nop,\cPer,\eta_0,s',\eta',\textcolor{blue}{\eta_{\omega}},\contesters,\Tfinal)
 		\]
-		\item Records the initial snapshot state $\eta_0 = \eta$. \\
+		\item Records the initial snapshot state $\eta_0 = \eta$. \todo{$\eta \not= \eta_{0}$ anymore with incr/decr}
 		This makes off-chain signatures rollback and replay resistant,
 		see~\ref{sec:rollbacks} for details.
 		\item New snapshot state is the initial $\eta_{0}$
 		or correctly signed by all participants in $\xi$. \\
-		Given the closed snapshot number $s'$ from $(s', \cdot) = \eta'$,
+		Given the closed snapshot number $s'$,
 		\[
 			\left\{\begin{array}{ll}
 				\msVfy(\hydraKeysAgg,\mathsf{msg},\xi) = \true & \mathrm{if} ~ s' > 0, \\
@@ -431,7 +432,7 @@ In order to close a head, a head member may post the \mtxClose{} transaction
 		\]
 		where $\mathsf{msg}$ is the concatenated bytes of $\cid$, $\eta_{0}$
 		% TODO: η₀ is not yet incorporated
-		and $\eta'$: $\mathsf{msg} = (\cid || \textcolor{red}{\eta_{0} ||} \eta')$.
+		and $\eta'$: $\mathsf{msg} = (\cid || s' || \textcolor{red}{\eta_{0} ||} \eta')$.
 		% TODO: detailed CDDL definition of msg
 		\todo{snapshot/msg with pending decommit must work as well}
 		\item Initializes the set of contesters as $\contesters = \emptyset$. \\
@@ -475,12 +476,12 @@ transaction has
 		parameters $\cid,\hydraKeysAgg,\nop,\cPer, \textcolor{red}{\eta_{0}}$ stay
 		unchanged and the new state is governed again by $\nuHead$:
 		\[
-			(\stClosed,\cid,\hydraKeysAgg,\nop,\cPer,\eta_0,\eta,\contesters,\Tfinal) \xrightarrow[\xi]{\stContest} (\stClosed,\cid,\hydraKeysAgg,\nop,\cPer,\eta_0,\eta',\contesters',\Tfinal')
+			(\stClosed,\cid,\hydraKeysAgg,\nop,\cPer,\eta_0,s,\eta,\contesters,\Tfinal) \xrightarrow[\xi]{\stContest} (\stClosed,\cid,\hydraKeysAgg,\nop,\cPer,\eta_0,s',\eta',\contesters',\Tfinal')
 		\]
-		\item Contest snapshot is newer $s' > s$, where $(s, \cdot) = \eta$ is the
-		current and $(s', \cdot) = \eta'$ is the contest snapshot number.
+	  \item Contested snapshot number is newer $s' > s$, where $s$ is the
+		currently stored and $s'$ the snapshot number of the contest snapshot.
 		\item $\xi$ is a valid multi-signature of the new snapshot state
-		$\msVfy(\hydraKeysAgg,(\cid || \eta_{0} || \eta'),\xi) = \true$.
+		$\msVfy(\hydraKeysAgg,(\cid || s' || \textcolor{red}{\eta_{0}} || \eta'),\xi) = \true$. \todo{$\eta_{0}$ replacement}
 		\item The single signer $\{\keyHash\} = \txKeys$ has not already contested
 		$\keyHash \notin \contesters$ and is added to the set of contesters
 		$\contesters' = \contesters \cup \keyHash$.
@@ -526,13 +527,13 @@ distribute, and checks:
 	\item State is advanced from $\datumHead \sim \stClosed$ to terminal state
 	$\stFinal$: % XXX: What does this actually mean?
 	\[
-		(\stClosed,\cid,\hydraKeysAgg,\nop,\cPer,\eta_0,\eta,\contesters,\Tfinal) \xrightarrow[m]{\stFanout} \stFinal
+		(\stClosed,\cid,\hydraKeysAgg,\nop,\cPer,\eta_0,s,\eta,\contesters,\Tfinal) \xrightarrow[m]{\stFanout} \stFinal
 	\]
 	\item The first $m$ outputs are distributing funds according to
-	$(\cdot, U^{\#}) = \eta$. That is, the outputs exactly correspond to the UTxO
+	$\eta$. That is, the outputs exactly correspond to the UTxO
 	canonically combined $U^{\#}$ (see Section~\ref{sec:collect-tx}):
 	\[
-		\hash(\bigoplus_{j=1}^{m} \bytes(o_{j})) = U^{\#}
+		\hash(\bigoplus_{j=1}^{m} \bytes(o_{j})) = U^{\#} = \eta
 	\]
 	\item Transaction is posted after contestation deadline $\txValidityMin > \Tfinal$.
 	\item All tokens are burnt
