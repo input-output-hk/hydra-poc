@@ -303,7 +303,7 @@ the number of outputs to reimburse. The validator checks:
 	\item Decrement snapshot number is newer $s' > s$, where $s$ is the
 	currently stored and $s'$ the snapshot number of the decrement snapshot.
 	\item $\xi$ is a valid multi-signature of the new snapshot state $\eta'$ and the
-	removed UTxOs
+	removed UTxOs $\eta_{\omega} = U^{\#}_{\omega}$
 	\[
 		\msVfy(\hydraKeysAgg,(\cid || s' || \textcolor{red}{\eta_{0} || \eta' || U^{\#}_{\omega}}),\xi) = \true
 	\]
