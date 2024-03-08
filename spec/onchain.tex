@@ -314,6 +314,7 @@ the number of outputs to reimburse. The validator checks:
 	\]
 	\item Transaction is signed by a participant $\exists \{\cid \mapsto \keyHash_{i} \mapsto 1\} \in \valHead' \Rightarrow \keyHash_{i} \in \txKeys$.
 	\todo{Need a constraint on the value in the head?}
+	\item Value in the head is preserved $\valHead' = \valHead$.
 \end{menumerate}
 
 \begin{figure}[h] \centering
