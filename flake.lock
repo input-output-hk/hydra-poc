@@ -2714,7 +2714,8 @@
         "nixpkgs": [
           "haskellNix",
           "nixpkgs"
-        ]
+        ],
+        "werrorwolf": "werrorwolf"
       }
     },
     "rust-analyzer-src": {
@@ -3048,6 +3049,21 @@
         "owner": "numtide",
         "repo": "flake-utils",
         "type": "github"
+      }
+    },
+    "werrorwolf": {
+      "locked": {
+        "lastModified": 1711288704,
+        "narHash": "sha256-ZvyKhxLwnmQTeLUWfpavqCZF5aafyJFf2QajajXLq7M=",
+        "ref": "refs/heads/master",
+        "rev": "f9b7f87f85424e537724f763c5e6b914d9714f54",
+        "revCount": 9,
+        "type": "git",
+        "url": "https://gitlab.horizon-haskell.net/nix/werrorwolf"
+      },
+      "original": {
+        "type": "git",
+        "url": "https://gitlab.horizon-haskell.net/nix/werrorwolf"
       }
     },
     "yants": {

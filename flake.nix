@@ -21,6 +21,7 @@
     cardano-node.url = "github:intersectmbo/cardano-node/8.9.0";
     mithril.url = "github:input-output-hk/mithril/2347.0";
     nix-npm-buildpackage.url = "github:serokell/nix-npm-buildpackage";
+    werrorwolf.url = "git+https://gitlab.horizon-haskell.net/nix/werrorwolf";
   };
 
   outputs =
@@ -35,6 +36,9 @@
         "x86_64-linux"
         "x86_64-darwin"
         "aarch64-darwin"
+      ];
+      imports = [
+        inputs.werrorwolf.flakeModule
       ];
       perSystem = { config, system, ... }:
         let
@@ -124,6 +128,14 @@
             inherit inputs pkgs hsPkgs system compiler;
           };
 
+          werrorwolf = {
+            enable = true;
+            packages = {
+              inherit (hsPkgs)
+                hydra-node
+                hydra-tui;
+            };
+          };
         };
     };
 
