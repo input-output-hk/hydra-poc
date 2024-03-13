@@ -300,21 +300,30 @@ the number of outputs to reimburse. The validator checks:
 	\[
 		(\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,s,\eta) \xrightarrow[\xi]{\mathsf{decrement}} (\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,s',\eta')
 	\]
-	\item Decrement snapshot number is newer $s' > s$, where $s$ is the
-	currently stored and $s'$ the snapshot number of the decrement snapshot.
-	\item $\xi$ is a valid multi-signature of the new snapshot state $\eta'$ and the
-	removed UTxOs $\eta_{\omega} = U^{\#}_{\omega}$
+	\item Decrement snapshot number is newer
 	\[
-		\msVfy(\hydraKeysAgg,(\cid || s' || \textcolor{red}{\eta_{0} || \eta' || U^{\#}_{\omega}}),\xi) = \true
+		s' > s
+	\]
+	where $s$ is the currently stored and $s'$ the snapshot number of the
+	decrement snapshot.
+	\item $\xi$ is a valid multi-signature of the new snapshot state $\eta'$ and the
+	removed UTxOs $\eta_{\omega}$
+	\[
+		\msVfy(\hydraKeysAgg,(\cid || s' || \textcolor{red}{\eta_{0} ||} \eta' || \eta_{\omega}),\xi) = \true
 	\]
   \todo{$\eta_{0}$ replacement}
 	where
 	\[
-		U^{\#}_{\omega}  = \hash(\bigoplus_{j=1}^{m} \bytes(o_{j}))
+		\eta_{\omega} = U^{\#}_{\omega}  = \hash(\bigoplus_{j=1}^{m} \bytes(o_{j}))
 	\]
-	\item Transaction is signed by a participant $\exists \{\cid \mapsto \keyHash_{i} \mapsto 1\} \in \valHead' \Rightarrow \keyHash_{i} \in \txKeys$.
-	\todo{Need a constraint on the value in the head?}
-	\item Value in the head is preserved $\valHead' = \valHead$.
+	\item Transaction is signed by a participant
+	\[
+		\exists \{\cid \mapsto \keyHash_{i} \mapsto 1\} \in \valHead' \Rightarrow \keyHash_{i} \in \txKeys
+	\]
+	\item The value in the head output is decreased accordingly
+	\[
+		\valHead' \cup (\bigcup_{j=1}^{m} \val_{o_{j}}) = \valHead
+	\]
 \end{menumerate}
 
 \begin{figure}[h] \centering
