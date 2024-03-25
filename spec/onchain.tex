@@ -436,33 +436,51 @@ In order to close a head, a head member may post the \mtxClose{} transaction
 \end{figure}
 
 \noindent The state-machine validator $\nuHead$ is spent with
-$\redeemerHead = (\mathsf{close}, \xi)$, where $\xi$ is a multi-signature of
-the to be closed snapshot, and checks:
+$\redeemerHead = (\mathsf{close}, \xi, \textcolor{red}{\mathsf{CloseType}})$, where $\xi$ is a multi-signature of
+the to be closed snapshot and $\mathsf{CloseType}$ is a hint against which state we close. The validator checks:
 \begin{menumerate}
 	\item State is advanced from $\datumHead \sim \stOpen$ to
 	$\datumHead' \sim \stClosed$, parameters $\cid,\hydraKeysAgg,\nop,\cPer$
-	stay unchanged and the new state is governed again by $\nuHead$:
+	stay unchanged and the new state is governed again by $\nuHead$
 	\[
-		(\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,s,\eta) \xrightarrow[\xi]{\stClose} (\stClosed,\cid,\hydraKeysAgg,\nop,\cPer,\eta_0,s',\eta',\textcolor{blue}{\eta_{\omega}},\contesters,\Tfinal)
+		(\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,s,\textcolor{red}{\eta_{\mathsf{pre}},\eta_{\mathsf{cur}}}) \xrightarrow[\xi]{\stClose} (\stClosed,\cid,\hydraKeysAgg,\nop,\cPer,s',\textcolor{red}{\eta_{c},\eta',\eta_{\Delta}},\contesters,\Tfinal)
 	\]
-	\item Records the initial snapshot state $\eta_0 = \eta$. \todo{$\eta \not= \eta_{0}$ anymore with incr/decr}
-	This makes off-chain signatures rollback and replay resistant,
-	see~\ref{sec:rollbacks} for details.
-	\item New snapshot state is the initial $\eta_{0}$
-	or correctly signed by all participants in $\xi$. \\
-	Given the closed snapshot number $s'$,
+
+	\item Closing snapshot number $s'$ is higher than the currently stored snapshot number $s$
 	\[
-		\left\{\begin{array}{ll}
-			\msVfy(\hydraKeysAgg,\mathsf{msg},\xi) = \true & \mathrm{if} ~ s' > 0, \\
-			\eta' = \eta_{0}                               & \mathrm{otherwise.}
-		\end{array}\right.
+		s' > s
 	\]
-	where $\mathsf{msg}$ is the concatenated bytes of $\cid$, $\eta_{0}$
-	% TODO: η₀ is not yet incorporated
-	and $\eta'$: $\mathsf{msg} = (\cid || s' || \textcolor{red}{\eta_{0} ||} \eta')$.
+	\item Record the closed head state
+	\[
+	  \eta_{c} = \eta_{\mathsf{cur}}
+	\]
+	\item Based on the redeemer $\mathsf{CloseType} = \mathsf{Initial} \cup \mathsf{Nominal} \cup (\mathsf{Preemptive},\eta_{\alpha}) \cup (\mathsf{Pending}, \eta_{\omega})$, we verify the signature distinguishing these cases:
+	\begin{menumerate}
+	  \item Initial close: The initial snapshot is used to close the head. No signatures are available and it suffices to check
+	  \[
+		s' = 0
+	  \]
+	  \item Nominal close: Closing snapshot is referencing the current state $\eta$ and no UTxO is pending to be committed or decommitted.
+	  \[
+		\msVfy(\hydraKeysAgg,(\cid || s' || \eta_{\mathsf{cur}}|| \eta' || \bot || \bot),\xi) = \true
+	  \]
+	  \item Preemptive close: Instead of incrementing/decrementing, the head is closed with a snapshot that references the current state $\eta$, but has either pending UTxO to commit, decommit or both.
+	  \[
+		\msVfy(\hydraKeysAgg,(\cid || s' || \eta_{\mathsf{cur}} || \eta' || \eta_{\alpha} || \eta_{\Delta}),\xi) = \true
+	  \]
+	  where $\eta_{\alpha}$ is provided by the redeemer. \todo{explain why this is enough}
+	  \item Pending close: After incrementing/decrementing, the head is closed with a snapshot that is still referencing the previous state $\eta_{\mathsf{pre}}$ and has either pending UTxO to commit, decommit or both.
+	  \[
+		\msVfy(\hydraKeysAgg,(\cid || s' || \eta_{\mathsf{pre}} || \eta' || \eta_{\Delta} || \eta_{\omega}),\xi) = \true
+	  \]
+	  where $\eta_{\omega}$ is provided by the redeemer. \todo{explain why this is enough}
+	\end{menumerate}
 	% TODO: detailed CDDL definition of msg
-	\todo{snapshot/msg with pending decommit must work as well}
-	\item Initializes the set of contesters as $\contesters = \emptyset$. \\
+
+	\item Initializes the set of contesters
+	\[
+		\contesters = \emptyset
+	\]
 	This allows the closing party to also contest and is required for use
 	cases where pre-signed, valid in the future, close transactions are
 	used to delegate head closing.
