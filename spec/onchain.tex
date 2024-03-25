@@ -255,18 +255,28 @@ the increment snapshot which authorizes addition of some UTxO $U_\alpha$, and ch
 \begin{menumerate}
 	\item State is advanced from $\datumHead \sim \stOpen$ to
 	$\datumHead' \sim \stOpen$, parameters $\cid,\hydraKeysAgg,\nop,\cPer$
-	stay unchanged and the new state is governed again by $\nuHead$:
+	stay unchanged and the new state is governed again by $\nuHead$
 	\[
-		(\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,s,\eta) \xrightarrow[\xi]{\mathsf{increment}} (\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,s', \eta')
+		(\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,s,\eta_{\mathsf{prev}},\eta) \xrightarrow[\xi]{\mathsf{increment}} (\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,s',\eta,\eta')
 	\]
-	\item Increment snapshot number is newer $s' > s$, where $s$ is the
-	currently stored and $s'$ the snapshot number of the increment snapshot.
-	\item $\xi$ is a valid multi-signature of the new snapshot state
-	$\msVfy(\hydraKeysAgg,(\cid || s' || \textcolor{red}{\eta_{0}} || \eta'),\xi) = \true$. \todo{$\eta_{0}$ replacement}
-	\item \todo{Need to ensure all value of $U_\alpha$ is captured! Right now, this could be attacked with $\txOutRef_{\mathsf{committed}} = []$} \textcolor{red}{All committed value is in the output
-		$\valHead' \supseteq \valHead \cup (\bigcup_{j=1}^{m} \val_{\mathsf{committed}_{j}})$}
-
-	\item Transaction is signed by a participant $\exists \{\cid \mapsto \keyHash_{i} \mapsto 1\} \in \valHead' \Rightarrow \keyHash_{i} \in \txKeys$.
+	\todo{explain $\stOpen$ tuple}
+	\todo{need to check all fields!}
+	\item Increment snapshot number $s'$ is higher than the currently stored snapshot number $s$
+	\[
+		s' > s
+	\]
+	\item $\xi$ is a valid multi-signature of the new snapshot state $\eta'$
+	\[
+		\msVfy(\hydraKeysAgg,(\cid || s' || \eta || \eta' || \eta_{\alpha}),\xi) = \true
+	\]
+	where $\eta_{\alpha}$ is the digest of all added UTxO
+	\[
+		\eta_{\alpha} = U^{\#}_{\alpha}  = \hash(\bigoplus_{j=1}^{m} \bytes(o_{\mathsf{committed}_{j}}))
+	\]
+	\item Transaction is signed by a participant
+	\[
+		\exists \{\cid \mapsto \keyHash_{i} \mapsto 1\} \in \valHead' \Rightarrow \keyHash_{i} \in \txKeys
+	\]
 \end{menumerate}
 
 \begin{figure}[h] \centering
@@ -296,23 +306,20 @@ the number of outputs to reimburse. The validator checks:
 \begin{menumerate}
 	\item State is advanced from $\datumHead \sim \stOpen$ to
 	$\datumHead' \sim \stOpen$, parameters $\cid,\hydraKeysAgg,\nop,\cPer$ stay
-	unchanged and the new state is governed again by $\nuHead$:
+	unchanged and the new state is governed again by $\nuHead$
+	\todo{need to check all fields!}
 	\[
-		(\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,s,\eta) \xrightarrow[\xi]{\mathsf{decrement}} (\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,s',\eta')
+		(\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,s,\eta_{\mathsf{prev}},\eta) \xrightarrow[\xi]{\mathsf{decrement}} (\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,\eta,\eta')
 	\]
-	\item Decrement snapshot number is newer
+	\item Decrement snapshot number $s'$ is higher than the currently stored snapshot number $s$
 	\[
 		s' > s
 	\]
-	where $s$ is the currently stored and $s'$ the snapshot number of the
-	decrement snapshot.
-	\item $\xi$ is a valid multi-signature of the new snapshot state $\eta'$ and the
-	removed UTxOs $\eta_{\omega}$
+	\item $\xi$ is a valid multi-signature of the new snapshot state $\eta'$
 	\[
-		\msVfy(\hydraKeysAgg,(\cid || s' || \textcolor{red}{\eta_{0} ||} \eta' || \eta_{\omega}),\xi) = \true
+		\msVfy(\hydraKeysAgg,(\cid || s' || \eta || \eta' || \eta_{\omega}),\xi) = \true
 	\]
-  \todo{$\eta_{0}$ replacement}
-	where
+	where $\eta_{\omega}$ is the digest of all removed UTxO
 	\[
 		\eta_{\omega} = U^{\#}_{\omega}  = \hash(\bigoplus_{j=1}^{m} \bytes(o_{j}))
 	\]
@@ -320,7 +327,7 @@ the number of outputs to reimburse. The validator checks:
 	\[
 		\exists \{\cid \mapsto \keyHash_{i} \mapsto 1\} \in \valHead' \Rightarrow \keyHash_{i} \in \txKeys
 	\]
-	\item The value in the head output is decreased accordingly
+	\item The value in the head output is decreased accordingly \todo{really needed?}
 	\[
 		\valHead' \cup (\bigcup_{j=1}^{m} \val_{o_{j}}) = \valHead
 	\]
