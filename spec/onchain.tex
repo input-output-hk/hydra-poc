@@ -256,15 +256,15 @@ $\redeemerHead = \mathsf{collect}$ and checks:
 \begin{menumerate}
 	\item State is advanced from $\datumHead \sim \stInitial$ to
 	$\datumHead' \sim \stOpen$, parameters $\cid,\hydraKeysAgg,\nop,\cPer$ stay
-	unchanged and the new state is governed again by $\nuHead$:
+	unchanged and the new state is governed again by $\nuHead$
 	\[
-		(\stInitial,\cid,\seed,\hydraKeysAgg,\nop,\cPer) \xrightarrow{\stCollect} (\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,\textcolor{blue}{s}, \eta)
+		(\stInitial,\cid,\seed,\hydraKeysAgg,\nop,\cPer) \xrightarrow{\stCollect} (\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,\textcolor{blue}{0},\eta,\eta)
 	\]
-	\item Commits collected in $\eta = U^{\#}$ with snapshot number $0$,
+	\item Commits are collected in $\eta$
+	\[
+		\eta = U^{\#} = \combine([C_{1}, \dots, C_{\nop}])
+	\]
 	where
-	\[
-		U^{\#} = \combine([C_{1}, \dots, C_{\nop}])
-	\]
 	\[
 		\combine(\underline{C}) = \hash(\mathsf{concat}({\sortOn(1, \mathsf{concat}(\underline{C}))}^{\downarrow2}))
 	\]
@@ -278,21 +278,33 @@ $\redeemerHead = \mathsf{collect}$ and checks:
 		can also be reproduced from the UTxO set later in the fanout.}.
 
 	\item All committed value captured and no value is extracted
-	$\valHead' = \valHead \cup (\bigcup_{i=1}^{n} \valCommit{i})$.
+	\[
+		\valHead' = \valHead \cup (\bigcup_{i=1}^{n} \valCommit{i})
+	\]
 	\item Every participant had the chance to commit, by checking all tokens are
 	present in output\footnote{This is sufficient as a Head participant would
 		check off-chain whether a Head is initialized correctly with the right
 		number of tokens.}
 	% NOTE: Implemented slightly different as we would only count PTs and = n
-	$|\{\cid \rightarrow . \rightarrow 1\} \in \valHead'| = \nop + 1$.
-	\item Transaction is signed by a participant $\exists \{\cid \mapsto \keyHash_{i} \mapsto 1\} \in \valCommit{i} \Rightarrow \keyHash_{i} \in \txKeys$.
-	\item No minting or burning  $\txMint = \varnothing$.
+	\[
+		|\{\cid \rightarrow . \rightarrow 1\} \in \valHead'| = \nop + 1
+	\]
+	\item Transaction is signed by a participant
+	\[
+		\exists \{\cid \mapsto \keyHash_{i} \mapsto 1\} \in \valCommit{i} \Rightarrow \keyHash_{i} \in \txKeys
+	\]
+	\item No minting or burning
+	\[
+		\txMint = \varnothing
+	\]
 \end{menumerate}
 
 \noindent Each spent $\nuCommit$ validator with $\datumCommit{i} = (\cid,\cdot)$ and $\redeemerCommit{i} = \mathsf{collect}$ ensures that:
 \begin{menumerate}
 	\item The state token of currency $\cid$ is present in the output value
-	$\st \in \valHead'$.
+	\[
+		\st \in \valHead'
+	\]
 \end{menumerate}
 
 \begin{figure}
@@ -324,11 +336,11 @@ the increment snapshot which authorizes addition of some UTxO $U_\alpha$, and ch
 	\item State is advanced from $\datumHead \sim \stOpen$ to
 	$\datumHead' \sim \stOpen$, parameters $\cid,\hydraKeysAgg,\nop,\cPer$
 	stay unchanged and the new state is governed again by $\nuHead$
+	\todo{explain $\stOpen$ tuple}
+	\todo{need to check all fields!}
 	\[
 		(\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,s,\eta_{\mathsf{prev}},\eta) \xrightarrow[\xi]{\mathsf{increment}} (\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,s',\eta,\eta')
 	\]
-	\todo{explain $\stOpen$ tuple}
-	\todo{need to check all fields!}
 	\item Increment snapshot number $s'$ is higher than the currently stored snapshot number $s$
 	\[
 		s' > s
