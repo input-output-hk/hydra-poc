@@ -258,7 +258,7 @@ $\redeemerHead = \mathsf{collect}$ and checks:
 	$\datumHead' \sim \stOpen$, parameters $\cid,\hydraKeysAgg,\nop,\cPer$ stay
 	unchanged and the new state is governed again by $\nuHead$
 	\[
-		(\stInitial,\cid,\seed,\hydraKeysAgg,\nop,\cPer) \xrightarrow{\stCollect} (\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,\textcolor{blue}{0},\eta,\eta)
+		(\stInitial,\cid,\seed,\hydraKeysAgg,\nop,\cPer) \xrightarrow{\stCollect} (\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,\eta,\textcolor{blue}{0},\eta)
 	\]
 	\item Commits are collected in $\eta$
 	\[
@@ -339,15 +339,15 @@ the increment snapshot which authorizes addition of some UTxO $U_\alpha$, and ch
 	\todo{explain $\stOpen$ tuple}
 	\todo{need to check all fields!}
 	\[
-		(\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,s,\eta_{\mathsf{prev}},\eta) \xrightarrow[\xi]{\mathsf{increment}} (\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,s',\eta,\eta')
+		(\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,\eta_{\mathsf{pre}},s,\eta) \xrightarrow[\xi]{\mathsf{increment}} (\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,\eta,s',\eta')
 	\]
 	\item Increment snapshot number $s'$ is higher than the currently stored snapshot number $s$
 	\[
 		s' > s
 	\]
-	\item $\xi$ is a valid multi-signature of the new snapshot state $\eta'$
+	\item $\xi$ is a valid multi-signature of the currency id $\cid$, the current snapshot state $\eta$, the new snapshot number $s'$ and state $\eta'$
 	\[
-		\msVfy(\hydraKeysAgg,(\cid || s' || \eta || \eta' || \eta_{\alpha}),\xi) = \true
+		\msVfy(\hydraKeysAgg,(\cid || \eta || s' || \eta' || \eta_{\alpha}),\xi) = \true
 	\]
 	where $\eta_{\alpha}$ is the digest of all added UTxO
 	\[
@@ -388,15 +388,15 @@ the number of outputs to reimburse. The validator checks:
 	unchanged and the new state is governed again by $\nuHead$
 	\todo{need to check all fields!}
 	\[
-		(\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,s,\eta_{\mathsf{prev}},\eta) \xrightarrow[\xi]{\mathsf{decrement}} (\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,\eta,\eta')
+		(\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,\eta_{\mathsf{pre}},s,\eta) \xrightarrow[\xi]{\mathsf{decrement}} (\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,\eta,s',\eta')
 	\]
 	\item Decrement snapshot number $s'$ is higher than the currently stored snapshot number $s$
 	\[
 		s' > s
 	\]
-	\item $\xi$ is a valid multi-signature of the new snapshot state $\eta'$
+	\item $\xi$ is a valid multi-signature of the currency id $\cid$, the current snapshot state $\eta$, the new snapshot number $s'$ and state $\eta'$
 	\[
-		\msVfy(\hydraKeysAgg,(\cid || s' || \eta || \eta' || \eta_{\omega}),\xi) = \true
+		\msVfy(\hydraKeysAgg,(\cid || \eta || s' || \eta' || \eta_{\omega}),\xi) = \true
 	\]
 	where $\eta_{\omega}$ is the digest of all removed UTxO
 	\[
@@ -443,8 +443,8 @@ the to be closed snapshot and $\mathsf{CloseType}$ is a hint against which state
 	$\datumHead' \sim \stClosed$, parameters $\cid,\hydraKeysAgg,\nop,\cPer$
 	stay unchanged and the new state is governed again by $\nuHead$
 	\[
-		(\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,s,\textcolor{red}{\eta_{\mathsf{pre}},\eta_{\mathsf{cur}}}) \xrightarrow[\xi]{\stClose} (\stClosed,\cid,\hydraKeysAgg,\nop,\cPer,s',\textcolor{red}{\eta_{c},\eta',\eta_{\Delta}},\contesters,\Tfinal)
-	\]
+		(\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,\textcolor{red}{\eta_{\mathsf{pre}},s,\eta_{\mathsf{cur}}}) \xrightarrow[\xi]{\stClose} (\stClosed,\cid,\hydraKeysAgg,\nop,\cPer,\textcolor{red}{\eta_{c},s',\eta',\eta_{\Delta}},\contesters,\Tfinal)
+	\]\todo{this $\eta_{\Delta}$ might not work as we need to keep things separate}
 
 	\item Closing snapshot number $s'$ is higher than the currently stored snapshot number $s$
 	\[
@@ -460,18 +460,18 @@ the to be closed snapshot and $\mathsf{CloseType}$ is a hint against which state
 	  \[
 		s' = 0
 	  \]
-	  \item Nominal close: Closing snapshot is referencing the current state $\eta$ and no UTxO is pending to be committed or decommitted.
+	  \item Nominal close: Closing snapshot refers to current state $\eta_{\mathsf{cur}}$ and no UTxO is pending to be committed or decommitted.
 	  \[
-		\msVfy(\hydraKeysAgg,(\cid || s' || \eta_{\mathsf{cur}}|| \eta' || \bot || \bot),\xi) = \true
+		\msVfy(\hydraKeysAgg,(\cid || \eta_{\mathsf{cur}}|| s' || \eta' || \bot || \bot),\xi) = \true
 	  \]
-	  \item Preemptive close: Instead of incrementing/decrementing, the head is closed with a snapshot that references the current state $\eta$, but has either pending UTxO to commit, decommit or both.
+	  \item Preemptive close: Instead of incrementing/decrementing, the head is closed with a snapshot that references the current state $\eta_{\mathsf{cur}}$, but has pending UTxO to commit.
 	  \[
-		\msVfy(\hydraKeysAgg,(\cid || s' || \eta_{\mathsf{cur}} || \eta' || \eta_{\alpha} || \eta_{\Delta}),\xi) = \true
+		\msVfy(\hydraKeysAgg,(\cid || \eta_{\mathsf{cur}} || s' || \eta' || \eta_{\alpha} || \eta_{\Delta}),\xi) = \true
 	  \]
 	  where $\eta_{\alpha}$ is provided by the redeemer. \todo{explain why this is enough}
-	  \item Pending close: After incrementing/decrementing, the head is closed with a snapshot that is still referencing the previous state $\eta_{\mathsf{pre}}$ and has either pending UTxO to commit, decommit or both.
+	  \item Pending close: After incrementing/decrementing, the head is closed with a snapshot that is still referencing the previous state $\eta_{\mathsf{pre}}$ and pending UTxO to decommit.
 	  \[
-		\msVfy(\hydraKeysAgg,(\cid || s' || \eta_{\mathsf{pre}} || \eta' || \eta_{\Delta} || \eta_{\omega}),\xi) = \true
+		\msVfy(\hydraKeysAgg,(\cid || \eta_{\mathsf{pre}} || s' || \eta' || \eta_{\Delta} || \eta_{\omega}),\xi) = \true
 	  \]
 	  where $\eta_{\omega}$ is provided by the redeemer. \todo{explain why this is enough}
 	\end{menumerate}
@@ -516,15 +516,30 @@ $\redeemerHead = (\mathsf{contest}, \xi)$, where $\xi$ is a multi-signature of
 the contest snapshot, and checks:
 \begin{menumerate}
 	\item State stays $\stClosed$ in both $\datumHead$ and $\datumHead'$,
-	parameters $\cid,\hydraKeysAgg,\nop,\cPer, \textcolor{red}{\eta_{0}}$ stay
+	parameters $\cid,\hydraKeysAgg,\nop,\cPer$ stay
 	unchanged and the new state is governed again by $\nuHead$:
 	\[
-		(\stClosed,\cid,\hydraKeysAgg,\nop,\cPer,\eta_0,s,\eta,\contesters,\Tfinal) \xrightarrow[\xi]{\stContest} (\stClosed,\cid,\hydraKeysAgg,\nop,\cPer,\eta_0,s',\eta',\contesters',\Tfinal')
+		(\stClosed,\cid,\hydraKeysAgg,\nop,\cPer,s',\textcolor{red}{\eta_{c},\eta,\eta_{\Delta}},\contesters,\Tfinal) \xrightarrow[\xi]{\stContest} (\stClosed,\cid,\hydraKeysAgg,\nop,\cPer,s',\textcolor{red}{\eta_{c},\eta',\eta_{\Delta}'},\contesters',\Tfinal')
 	\]
-	\item Contested snapshot number is newer $s' > s$, where $s$ is the
-	currently stored and $s'$ the snapshot number of the contest snapshot.
-	\item $\xi$ is a valid multi-signature of the new snapshot state
+
+	\item Contested snapshot number $s'$ is higher than the currently stored snapshot number $s$
+	\[
+		s' > s
+	\]
+	\item We distinguish these cases: \todo{what happens to $\eta_{\Delta}$ if it is there?}
+
+	\begin{menumerate}
+	  \item Nominal contest: Contesting snapshot refers to currently closed state $\eta$ and no UTxO is pending to be committed or decommitted.
+	  \item Preemptive close: The head is contested with a snapshot that references the currently closed state $\eta$, but has either pending UTxO to commit, decommit or both.
+	  \item Pending close: The head is contested with a snapshot that references the originally closed $\eta_{c}$ and has either pending UTxO to commit, decommit or both.
+	\end{menumerate}
+
+
+
+
+	\textcolor{red}{Ensure $\eta_{\Delta}$ evolves correctly!?} $\xi$ is a valid multi-signature of the new snapshot state
 	$\msVfy(\hydraKeysAgg,(\cid || s' || \textcolor{red}{\eta_{0}} || \eta'),\xi) = \true$. \todo{$\eta_{0}$ replacement}
+
 	\item The single signer $\{\keyHash\} = \txKeys$ has not already contested
 	$\keyHash \notin \contesters$ and is added to the set of contesters
 	$\contesters' = \contesters \cup \keyHash$.
