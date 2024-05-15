@@ -115,31 +115,50 @@ spec = parallel $ do
       prop "stress test networking layer" $ \(aliceToBobMessages :: [Int]) (bobToAliceMessages :: [Int]) seed ->
         let
           (msgReceivedByAlice, msgReceivedByBob, traces) = runSimOrThrow $ do
-            messagesReceivedByBob <- newTVarIO empty
             messagesReceivedByAlice <- newTVarIO empty
+            messagesReceivedByBob <- newTVarIO empty
+            messagesReceivedByCarol <- newTVarIO empty
             emittedTraces <- newTVarIO []
             randomSeed <- newTVarIO $ mkStdGen seed
             aliceToBob <- newTQueueIO
+            aliceToCarol <- newTQueueIO
             bobToAlice <- newTQueueIO
+            bobToCarol <- newTQueueIO
+            carolToAlice <- newTQueueIO
+            carolToBob <- newTQueueIO
             alicePersistence <- failingMessagePersistence randomSeed 2
             bobPersistence <- failingMessagePersistence randomSeed 2
+            carolPersistence <- failingMessagePersistence randomSeed 2
             let
               -- this is a NetworkComponent that broadcasts authenticated messages
               -- mediated through a read and a write TQueue but drops 0.2 % of them
-              aliceFailingNetwork = failingNetwork randomSeed alice bobToAlice  aliceToBob
-              bobFailingNetwork = failingNetwork randomSeed bob aliceToBob bobToAlice
+              aliceToBobFailingNetwork = failingNetwork randomSeed alice bobToAlice aliceToBob
+              aliceToCarolFailingNetwork = failingNetwork randomSeed alice carolToAlice aliceToCarol
+              bobToAliceFailingNetwork = failingNetwork randomSeed bob aliceToBob bobToAlice
+              bobToCarolFailingNetwork = failingNetwork randomSeed bob bobToAlice bobToCarol
+              carolToAliceFailingNetwork = failingNetwork randomSeed carol aliceToCarol carolToAlice
+              carolToBobFailingNetwork = failingNetwork randomSeed carol bobToCarol carolToBob
 
-              bobReliabilityStack = reliabilityStack bobPersistence bobFailingNetwork (captureTraces emittedTraces) "bob" bob [alice]
-              aliceReliabilityStack = reliabilityStack alicePersistence aliceFailingNetwork (captureTraces emittedTraces) "alice" alice [bob]
+              aliceToBobReliabilityStack = reliabilityStack alicePersistence aliceToBobFailingNetwork (captureTraces emittedTraces) "alice" alice [bob]
+              aliceToCarolReliabilityStack = reliabilityStack alicePersistence aliceToCarolFailingNetwork (captureTraces emittedTraces) "alice" alice [carol]
+              bobToAliceReliabilityStack = reliabilityStack bobPersistence bobToAliceFailingNetwork (captureTraces emittedTraces) "bob" bob [alice]
+              bobToCarolReliabilityStack = reliabilityStack bobPersistence bobToCarolFailingNetwork (captureTraces emittedTraces) "bob" bob [carol]
+              carolToAliceReliabilityStack = reliabilityStack bobPersistence carolToAliceFailingNetwork (captureTraces emittedTraces) "carol" carol [alice]
+              carolToBobReliabilityStack = reliabilityStack bobPersistence carolToBobFailingNetwork (captureTraces emittedTraces) "carol" carol [bob]
 
-              runAlice = runPeer aliceReliabilityStack "alice" messagesReceivedByAlice messagesReceivedByBob aliceToBobMessages bobToAliceMessages
-              runBob = runPeer bobReliabilityStack "bob" messagesReceivedByBob messagesReceivedByAlice bobToAliceMessages aliceToBobMessages
+              runAliceToBob = runPeer aliceToBobReliabilityStack "alice" messagesReceivedByAlice messagesReceivedByBob aliceToBobMessages bobToAliceMessages
+              runAliceToCarol = runPeer aliceToBobReliabilityStack "alice" messagesReceivedByAlice messagesReceivedByCarol aliceToCarolMessages carolToAliceMessages
+              runBobToAlice = runPeer bobToAliceReliabilityStack "bob" messagesReceivedByBob messagesReceivedByAlice bobToAliceMessages aliceToBobMessages
+              runBobToCarol = runPeer bobToAliceReliabilityStack "bob" messagesReceivedByBob messagesReceivedByAlice bobToAliceMessages aliceToBobMessages
+              runCarolToAlice = runPeer carolToAliceReliabilityStack "carol" messagesReceivedByBob messagesReceivedByAlice bobToAliceMessages aliceToBobMessages
+              runCarolToBob = runPeer carolToBobReliabilityStack "carol" messagesReceivedByCarol messagesReceivedByBob bobToAliceMessages aliceToBobMessages
 
-            concurrently_ runAlice runBob
+            concurrently_ runAliceToBob runAliceToCarol runBobToAlice runBobToCarol runCarolToAlice runCarolToBob
 
             logs <- readTVarIO emittedTraces
             aliceReceived <- Vector.toList <$> readTVarIO messagesReceivedByAlice
             bobReceived <- Vector.toList <$> readTVarIO messagesReceivedByBob
+            carolReceived <- Vector.toList <$> readTVarIO messagesReceivedByCarol
             pure (aliceReceived, bobReceived, logs)
          in
           within 1000000 $
