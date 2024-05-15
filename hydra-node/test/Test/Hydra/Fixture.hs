@@ -15,6 +15,24 @@ import Hydra.Ledger.Cardano (genVerificationKey)
 import Hydra.OnChainId (AsType (AsOnChainId), OnChainId)
 import Hydra.Party (Party (..), deriveParty)
 
+data Actor
+  = Alice
+  | Bob
+  | Carol
+  deriving stock (Eq, Show, Ord)
+
+actorName :: Actor -> Text
+actorName = \case
+  Alice -> "alice"
+  Bob -> "bob"
+  Carol -> "carol"
+
+actorParty :: Actor -> Party
+actorParty = \case
+  Alice -> deriveParty aliceSk
+  Bob -> deriveParty bobSk
+  Carol -> deriveParty carolSk
+
 -- | Our beloved alice, bob, and carol.
 alice, bob, carol :: Party
 alice = deriveParty aliceSk
