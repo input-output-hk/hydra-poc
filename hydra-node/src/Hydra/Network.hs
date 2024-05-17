@@ -42,16 +42,8 @@ data NewNetwork m inmsg outmsg = NewNetwork
   -- ^ Register callback to be called when a message is received.
   }
 
-newNetwork :: MonadSTM m => m (NewNetwork m inmsg outmsg)
-newNetwork = do
-  onMessageReceived <- newCallback
-  pure $
-    NewNetwork
-      { broadcast = \_ -> pure ()
-      , onMessageReceived
-      }
-
-newtype NewCallback m a = NewCallback (TVar m (a -> m ()))
+-- | Type to store a callback that can be updated and invoked.
+newtype NewCallback m a = UnsafeCallback (TVar m (a -> m ()))
 
 newCallback :: MonadSTM m => m (NewCallback m a)
 newCallback =
@@ -59,14 +51,14 @@ newCallback =
 
 newCallback' :: MonadSTM m => (a -> m ()) -> m (NewCallback m a)
 newCallback' cb =
-  NewCallback <$> newTVarIO cb
+  UnsafeCallback <$> newTVarIO cb
 
 setCallback :: MonadSTM m => NewCallback m a -> (a -> m ()) -> m ()
-setCallback (NewCallback tv) cb =
+setCallback (UnsafeCallback tv) cb =
   atomically $ writeTVar tv cb
 
 callback :: MonadSTM m => NewCallback m a -> a -> m ()
-callback (NewCallback tv) v = do
+callback (UnsafeCallback tv) v = do
   cb <- readTVarIO tv
   cb v
 

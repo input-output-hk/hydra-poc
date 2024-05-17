@@ -24,7 +24,7 @@ import Cardano.Crypto.Util (SignableRepresentation (getSignableRepresentation))
 import Control.Concurrent.Class.MonadSTM (modifyTVar', newTVarIO, readTVarIO, writeTVar)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
-import Hydra.Network (Network (..), NetworkCallback, NetworkComponent, NewNetwork, NodeId)
+import Hydra.Network (Network (..), NetworkCallback, NetworkComponent, NewNetwork (..), NodeId, callback, newCallback, setCallback)
 import Hydra.Network.Message (Connectivity (Connected, Disconnected))
 
 data HeartbeatState = HeartbeatState
@@ -78,11 +78,35 @@ heartbeatDelay = 0.5
 livenessDelay :: DiffTime
 livenessDelay = 3
 
+-- TODO: MonadResource to clean up threads
 newHeartbeat ::
+  (MonadAsync m, MonadDelay m) =>
   NodeId ->
   NewNetwork m (Heartbeat inbound) (Heartbeat outbound) ->
   m (NewNetwork m (Either Connectivity inbound) outbound)
-newHeartbeat = undefined
+newHeartbeat nodeId baseNetwork = do
+  heartbeat <- newTVarIO initialHeartbeatState
+  lastSent <- newTVarIO Nothing
+
+  onMessageReceived <- newCallback
+  setCallback baseCallback $
+    updateStateFromIncomingMessages heartbeat (callback onMessageReceived)
+
+  withAsync (checkRemoteParties heartbeat (callback onMessageReceived . Left)) $ \_ ->
+    withAsync (checkHeartbeatState nodeId lastSent Network{broadcast = baseBroadcast}) $ \_ ->
+      pure
+        NewNetwork
+          { broadcast = \msg -> do
+              now <- getMonotonicTime
+              updateLastSent lastSent now
+              baseBroadcast (Data nodeId msg)
+          , onMessageReceived
+          }
+ where
+  NewNetwork
+    { broadcast = baseBroadcast
+    , onMessageReceived = baseCallback
+    } = baseNetwork
 
 -- | Wrap a lower-level `NetworkComponent` and handle sending/receiving of heartbeats.
 --

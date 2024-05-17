@@ -252,13 +252,13 @@ prop_stressTest aliceMessages bobMessages seed =
   (msgReceivedByAlice, msgReceivedByBob) = runSimOrThrow $ do
     connect <- createSometimesFailingNetwork
     (recordAliceMessage, getAliceMessages) <- messageRecorder
-    aliceNetwork <- connect alice
-    -- aliceNetwork <- reliableNetwork alice [bob] =<< connect alice
+    -- aliceNetwork <- connect alice
+    aliceNetwork <- reliableNetwork alice [bob] =<< connect alice
     setCallback (onMessageReceived aliceNetwork) recordAliceMessage
 
     (recordBobMessage, getBobMessages) <- messageRecorder
-    bobNetwork <- connect bob
-    -- bobNetwork <- reliableNetwork bob [alice] =<< connect bob
+    -- bobNetwork <- connect bob
+    bobNetwork <- reliableNetwork bob [alice] =<< connect bob
     setCallback (onMessageReceived bobNetwork) recordBobMessage
 
     sendAll aliceNetwork aliceMessages
@@ -266,7 +266,7 @@ prop_stressTest aliceMessages bobMessages seed =
 
     (,) <$> getAliceMessages <*> (onlyData <$> getBobMessages)
 
-  onlyData = map (\Authenticated{payload} -> payload)
+  onlyData = map (\Authenticated{payload} -> payload) . rights
 
   createSometimesFailingNetwork :: MonadSTM m => m (Party -> m (NewNetwork m (Authenticated msg) msg))
   createSometimesFailingNetwork = do
@@ -302,7 +302,7 @@ prop_stressTest aliceMessages bobMessages seed =
 
 -- | Implementation of the reliability stack using the 'NewNetwork' interface
 reliableNetwork ::
-  MonadSTM m =>
+  (MonadAsync m, MonadDelay m) =>
   Party ->
   [Party] ->
   NewNetwork m (Authenticated (ReliableMsg (Heartbeat inbound))) (ReliableMsg (Heartbeat outbound)) ->

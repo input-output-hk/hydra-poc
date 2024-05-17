@@ -70,7 +70,7 @@ import Hydra.Crypto (HydraKey, SigningKey)
 import Hydra.Ledger (IsTx)
 import Hydra.Logging (traceWith)
 import Hydra.Logging.Messages (HydraLog (..))
-import Hydra.Network (Host (..), IP, NetworkComponent, NewNetwork (NewNetwork, onMessageReceived), NodeId, PortNumber)
+import Hydra.Network (Host (..), IP, NetworkComponent, NewNetwork (..), NodeId, PortNumber, callback, newCallback, setCallback)
 import Hydra.Network.Authenticate (Authenticated (..), Signed, withAuthentication)
 import Hydra.Network.Heartbeat (Heartbeat (..), withHeartbeat)
 import Hydra.Network.Message (
@@ -189,10 +189,24 @@ withFlipHeartbeats withBaseNetwork callback =
     Authenticated (Ping nid) _ -> callback $ Ping nid
 
 newFlipHeartbeats ::
+  MonadSTM m =>
   NewNetwork m (Authenticated (Heartbeat inbound)) outbound ->
   m (NewNetwork m (Heartbeat (Authenticated inbound)) outbound)
-newFlipHeartbeats baseNetwork =
-  undefined
+newFlipHeartbeats baseNetwork = do
+  onMessageReceived <- newCallback
+  setCallback baseCallback $ \case
+    Authenticated (Data nid msg) party -> callback onMessageReceived $ Data nid (Authenticated msg party)
+    Authenticated (Ping nid) _ -> callback onMessageReceived $ Ping nid
+  pure
+    NewNetwork
+      { broadcast = baseBroadcast
+      , onMessageReceived
+      }
+ where
+  NewNetwork
+    { broadcast = baseBroadcast
+    , onMessageReceived = baseCallback
+    } = baseNetwork
 
 -- | Where are the messages stored, relative to given directory.
 storedMessagesFile :: FilePath -> FilePath

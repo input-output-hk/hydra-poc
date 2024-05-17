@@ -107,7 +107,7 @@ import Data.Vector (
   (!?),
  )
 import Hydra.Logging (traceWith)
-import Hydra.Network (Network (..), NetworkComponent, NewNetwork)
+import Hydra.Network (Network (..), NetworkComponent, NewNetwork (..), callback, newCallback, setCallback)
 import Hydra.Network.Authenticate (Authenticated (..))
 import Hydra.Network.Heartbeat (Heartbeat (..), isPing)
 import Hydra.Party (Party)
@@ -204,8 +204,9 @@ mkMessagePersistence numberOfParties msgPersistence ackPersistence =
         append msgPersistence msg
     }
 
+-- TODO: MonadResource to clean up threads
 newReliability ::
-  -- | Tracer for logging messages.
+  MonadAsync m =>
   Tracer m ReliabilityLog ->
   -- | Our persistence handle
   MessagePersistence m outbound ->
@@ -216,7 +217,131 @@ newReliability ::
   -- | Underlying network component providing consuming and sending channels.
   NewNetwork m (Authenticated (ReliableMsg (Heartbeat inbound))) (ReliableMsg (Heartbeat outbound)) ->
   m (NewNetwork m (Authenticated (Heartbeat inbound)) (Heartbeat outbound))
-newReliability = undefined
+newReliability tracer MessagePersistence{saveAcks, loadAcks, appendMessage, loadMessages} me otherParties baseNetwork = do
+  acksCache <- loadAcks >>= newTVarIO
+  sentMessages <- loadMessages >>= newTVarIO . Seq.fromList
+  resendQ <- newTQueueIO
+  let ourIndex = fromMaybe (error "This cannot happen because we constructed the list with our party inside.") (findPartyIndex me)
+  let resend = writeTQueue resendQ
+
+  onMessageReceived <- newCallback
+  setCallback baseCallback $
+    reliableCallback acksCache sentMessages resend ourIndex (callback onMessageReceived)
+
+  withAsync (forever $ atomically (readTQueue resendQ) >>= baseBroadcast) $ \_ ->
+    pure
+      NewNetwork
+        { broadcast = reliableBroadcast sentMessages ourIndex acksCache
+        , onMessageReceived
+        }
+ where
+  NewNetwork
+    { broadcast = baseBroadcast
+    , onMessageReceived = baseCallback
+    } = baseNetwork
+
+  allParties = fromList $ sort $ me : otherParties
+
+  reliableBroadcast sentMessages ourIndex acksCache msg =
+    case msg of
+      Data{} -> do
+        localCounter <- atomically $ cacheMessage >> incrementAckCounter
+        saveAcks localCounter
+        appendMessage msg
+        traceWith tracer BroadcastCounter{ourIndex, localCounter}
+        baseBroadcast $ ReliableMsg localCounter msg
+      Ping{} -> do
+        localCounter <- readTVarIO acksCache
+        saveAcks localCounter
+        traceWith tracer BroadcastPing{ourIndex, localCounter}
+        baseBroadcast $ ReliableMsg localCounter msg
+   where
+    incrementAckCounter = do
+      acks <- readTVar acksCache
+      let newAcks = constructAcks acks ourIndex
+      writeTVar acksCache newAcks
+      pure newAcks
+
+    cacheMessage =
+      modifyTVar' sentMessages (|> msg)
+
+  reliableCallback acksCache sentMessages resend ourIndex doCallback (Authenticated (ReliableMsg acknowledged payload) party) = do
+    if length acknowledged /= length allParties
+      then
+        traceWith
+          tracer
+          ReceivedMalformedAcks
+            { fromParty = party
+            , partyAcks = acknowledged
+            , numberOfParties = length allParties
+            }
+      else do
+        eShouldCallbackWithKnownAcks <- atomically $ runMaybeT $ do
+          loadedAcks <- lift $ readTVar acksCache
+          partyIndex <- hoistMaybe $ findPartyIndex party
+          messageAckForParty <- hoistMaybe (acknowledged !? partyIndex)
+          knownAckForParty <- hoistMaybe $ loadedAcks !? partyIndex
+          if
+            | isPing payload ->
+                -- we do not update indices on Pings but we do propagate them
+                return (True, partyIndex, loadedAcks)
+            | messageAckForParty == knownAckForParty + 1 -> do
+                -- we update indices for next in line messages and propagate them
+                let newAcks = constructAcks loadedAcks partyIndex
+                lift $ writeTVar acksCache newAcks
+                return (True, partyIndex, newAcks)
+            | otherwise ->
+                -- other messages are dropped
+                return (False, partyIndex, loadedAcks)
+
+        case eShouldCallbackWithKnownAcks of
+          Just (shouldCallback, theirIndex, localCounter) -> do
+            if shouldCallback
+              then do
+                doCallback Authenticated{payload, party}
+                traceWith tracer Received{acknowledged, localCounter, theirIndex, ourIndex}
+              else traceWith tracer Ignored{acknowledged, localCounter, theirIndex, ourIndex}
+
+            when (isPing payload) $
+              resendMessagesIfLagging sentMessages resend theirIndex localCounter acknowledged ourIndex
+          Nothing -> pure ()
+
+  constructAcks acks wantedIndex =
+    zipWith (\ack i -> if i == wantedIndex then ack + 1 else ack) acks partyIndexes
+
+  partyIndexes = generate (length allParties) id
+
+  resendMessagesIfLagging sentMessages resend theirIndex knownAcks acknowledged myIndex = do
+    let mmessageAckForUs = acknowledged !? myIndex
+    let mknownAckForUs = knownAcks !? myIndex
+    case (mmessageAckForUs, mknownAckForUs) of
+      (Just messageAckForUs, Just knownAckForUs) ->
+        -- We resend messages if our peer notified us that it's lagging behind our
+        -- latest message sent
+        when (messageAckForUs < knownAckForUs) $ do
+          let missing = fromList [messageAckForUs + 1 .. knownAckForUs]
+          storedMessages <- readTVarIO sentMessages
+          let messages = IMap.fromList (zip [1 ..] $ toList storedMessages)
+          forM_ missing $ \idx -> do
+            case messages IMap.!? idx of
+              Nothing ->
+                traceWith tracer $
+                  ReliabilityFailedToFindMsg
+                    { missingMsgIndex = idx
+                    , sentMessagesLength = IMap.size messages
+                    , knownAckForUs = knownAckForUs
+                    , messageAckForUs = messageAckForUs
+                    }
+              Just missingMsg -> do
+                let localCounter = zipWith (\ack i -> if i == myIndex then idx else ack) knownAcks partyIndexes
+                traceWith tracer Resending{missing, acknowledged, localCounter, theirIndex}
+                atomically $ resend $ ReliableMsg localCounter missingMsg
+      _ -> pure ()
+
+  -- Find the index of a party in the list of all parties.
+  -- NOTE: This should never fail.
+  findPartyIndex party =
+    elemIndex party allParties
 
 -- | Middleware function to handle message counters tracking and resending logic.
 --
