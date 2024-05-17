@@ -34,7 +34,6 @@ import Test.QuickCheck (
   collect,
   counterexample,
   generate,
-  tabulate,
   within,
   (===),
  )
@@ -222,25 +221,24 @@ prop_stressTest aliceMessages bobMessages carolMessages seed =
       , Set.fromList carolReceived === Set.fromList aliceMessages <> Set.fromList bobMessages
           & counterexample "carol received not matching what alice and bob sent"
       ]
-      -- TODO: capture and show traces & counterexample (unlines $ show <$> reverse traces)
-      & tabulate "Messages from Alice to Bob" ["< " <> show ((length bobReceived `div` 10 + 1) * 10)]
-      & tabulate "Messages from Bob to Alice" ["< " <> show ((length aliceReceived `div` 10 + 1) * 10)]
  where
+  -- TODO: capture and show traces & counterexample (unlines $ show <$> reverse traces)
+
   (aliceReceived, bobReceived, carolReceived) = runSimOrThrow $ do
     connect <- createSometimesFailingNetwork
     (recordAliceMessage, getAliceMessages) <- messageRecorder
-    aliceNetwork <- connect alice
-    -- aliceNetwork <- reliableNetwork alice [bob, carol] =<< connect alice
+    -- aliceNetwork <- connect alice
+    aliceNetwork <- reliableNetwork alice [bob, carol] =<< connect alice
     setCallback (onMessageReceived aliceNetwork) recordAliceMessage
 
     (recordBobMessage, getBobMessages) <- messageRecorder
-    bobNetwork <- connect bob
-    -- bobNetwork <- reliableNetwork bob [alice, carol] =<< connect bob
+    -- bobNetwork <- connect bob
+    bobNetwork <- reliableNetwork bob [alice, carol] =<< connect bob
     setCallback (onMessageReceived bobNetwork) recordBobMessage
 
     (recordCarolMessage, getCarolMessages) <- messageRecorder
-    carolNetwork <- connect carol
-    -- carolNetwork <- reliableNetwork carol [alice, bob] =<< connect carol
+    -- carolNetwork <- connect carol
+    carolNetwork <- reliableNetwork carol [alice, bob] =<< connect carol
     setCallback (onMessageReceived carolNetwork) recordCarolMessage
 
     sendAll aliceNetwork aliceMessages
@@ -249,7 +247,7 @@ prop_stressTest aliceMessages bobMessages carolMessages seed =
 
     (,,) <$> (onlyData <$> getAliceMessages) <*> (onlyData <$> getBobMessages) <*> (onlyData <$> getCarolMessages)
 
-  onlyData = map (\Authenticated{payload} -> payload)
+  onlyData = map (\Authenticated{payload} -> payload) . rights
 
   createSometimesFailingNetwork :: MonadSTM m => m (Party -> m (NewNetwork m (Authenticated msg) msg))
   createSometimesFailingNetwork = do
