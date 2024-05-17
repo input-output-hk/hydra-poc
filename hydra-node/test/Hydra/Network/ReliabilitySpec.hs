@@ -32,6 +32,7 @@ import Hydra.Persistence (
  )
 import System.Directory (doesFileExist)
 import System.FilePath ((</>))
+import System.Random (mkStdGen, uniformR)
 import Test.Hydra.Fixture (alice, bob, carol)
 import Test.QuickCheck (
   Positive (Positive),
@@ -108,10 +109,7 @@ spec = parallel $ do
             fromList . Vector.toList <$> readTVarIO sentMessages
        in head . knownMessageIds <$> sentMsgs `shouldBe` fromList [1 .. (length messages)]
 
-    -- this test is quite critical as it demonstrates messages dropped are properly managed and resent to the
-    -- other party whatever the length of queue, and whatever the interleaving of threads
-    modifyMaxSuccess (const 5000) $
-      prop "stress test networking layer" prop_stressTest
+    prop "stress test networking layer" prop_stressTest
 
     it "broadcast updates counter from peers" $ do
       let receivedMsgs = runSimOrThrow $ do
@@ -266,6 +264,7 @@ prop_stressTest aliceMessages bobMessages seed =
 
   createSometimesFailingNetwork :: MonadSTM m => m (Party -> NetworkCallback msg m -> m (Network m msg))
   createSometimesFailingNetwork = do
+    stdGenV <- newTVarIO $ mkStdGen seed
     peerMapV <- newTVarIO mempty
     pure $ \party callback -> do
       atomically $ modifyTVar' peerMapV (Map.insert party callback)
@@ -273,31 +272,18 @@ prop_stressTest aliceMessages bobMessages seed =
         Network
           { broadcast = \msg -> do
               callbacks <- readTVarIO peerMapV
-              forM_ (Map.toList callbacks) $ \(p, cb) ->
-                unless (p == party) $
+              forM_ (Map.toList callbacks) $ \(p, cb) -> do
+                -- drop 2% of messages
+                r <- randomNumber stdGenV
+                unless (p == party && r < 0.02) $
                   cb msg
           }
 
-  -- failingNetwork peer (readQueue, writeQueue) callback action = do
-  --   seedV <- newTVarIO $ mkStdGen seed
-  --   withAsync
-  --     ( forever $ do
-  --         newMsg <- atomically $ readTQueue readQueue
-  --         callback newMsg
-  --     )
-  --     $ \_ ->
-  --       action $
-  --         Network
-  --           { broadcast = \m -> atomically $ do
-  --               -- drop 2% of messages
-  --               r <- randomNumber seedV
-  --               unless (r < 0.02) $ writeTQueue writeQueue (Authenticated m peer)
-  --           }
-  -- randomNumber seed' = do
-  --   genSeed <- readTVar seed'
-  --   let (res, newGenSeed) = uniformR (0 :: Double, 1) genSeed
-  --   writeTVar seed' newGenSeed
-  --   pure res
+  randomNumber stdGenV = atomically $ do
+    genSeed <- readTVar stdGenV
+    let (res, newGenSeed) = uniformR (0 :: Double, 1) genSeed
+    writeTVar stdGenV newGenSeed
+    pure res
 
   sendAll Network{broadcast} msgs =
     forM_ msgs $ \m -> do
