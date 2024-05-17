@@ -3,24 +3,17 @@ module Hydra.Network.ReliabilitySpec where
 import Hydra.Prelude hiding (empty, fromList, head, replicate, unlines)
 import Test.Hydra.Prelude
 
-import Control.Concurrent.Class.MonadSTM (
-  MonadSTM (readTVarIO),
-  check,
-  modifyTVar',
-  newTVarIO,
-  writeTVar,
- )
+import Control.Concurrent.Class.MonadSTM (MonadSTM (readTVarIO), modifyTVar', newTVarIO, writeTVar)
 import Control.Monad.IOSim (runSimOrThrow)
 import Control.Tracer (Tracer (..), nullTracer)
 import Data.Map qualified as Map
 import Data.Sequence.Strict ((|>))
-import Data.Vector (Vector, empty, fromList, head, replicate, snoc)
-import Data.Vector qualified as Vector
-import Hydra.Network (Network (..), NewNetwork (..), NodeId (..), callback, newCallback, setCallback)
+import Data.Vector (fromList, head, replicate)
+import Hydra.Network (NewNetwork (..), NodeId (..), callback, newCallback, setCallback)
 import Hydra.Network.Authenticate (Authenticated (..))
 import Hydra.Network.Heartbeat (Heartbeat (..), newHeartbeat)
 import Hydra.Network.Message (Connectivity)
-import Hydra.Network.Reliability (MessagePersistence (..), ReliabilityLog (..), ReliableMsg (..), newReliability, withReliability)
+import Hydra.Network.Reliability (MessagePersistence (..), ReliabilityLog (..), ReliableMsg (..), newReliability)
 import Hydra.Node.Network (newFlipHeartbeats)
 import Hydra.NodeSpec (messageRecorder)
 import Hydra.Party (Party)
@@ -47,9 +40,6 @@ import Test.QuickCheck (
 
 spec :: Spec
 spec = parallel $ do
-  let captureOutgoing msgqueue _callback action =
-        action $ Network{broadcast = \msg -> atomically $ modifyTVar' msgqueue (`snoc` msg)}
-
   let msg' = 42 :: Int
   msg <- Data "node-1" <$> runIO (generate @String arbitrary)
 
@@ -100,36 +90,29 @@ spec = parallel $ do
   describe "sending messages" $ do
     prop "broadcast messages to the network assigning a sequential id" $ \(messages :: [String]) ->
       let sentMsgs = runSimOrThrow $ do
-            sentMessages <- newTVarIO empty
             persistence <- mockMessagePersistence 1
 
-            withReliability nullTracer persistence alice [] (captureOutgoing sentMessages) noop $ \Network{broadcast} -> do
-              mapM_ (broadcast . Data "node-1") messages
+            (_, getSentMessages, baseNetwork) <- mockNetwork
 
-            fromList . Vector.toList <$> readTVarIO sentMessages
-       in head . knownMessageIds <$> sentMsgs `shouldBe` fromList [1 .. (length messages)]
+            NewNetwork{broadcast} <- newReliability nullTracer persistence alice [] baseNetwork
 
-    prop "stress test networking layer" prop_stressTest
+            mapM_ (broadcast . Data "node-1") messages
+
+            getSentMessages
+       in head . knownMessageIds <$> sentMsgs `shouldBe` [1 .. (length messages)]
 
     it "broadcast updates counter from peers" $ do
       let receivedMsgs = runSimOrThrow $ do
-            sentMessages <- newTVarIO empty
             alicePersistence <- mockMessagePersistence 2
-            withReliability
-              nullTracer
-              alicePersistence
-              alice
-              [bob]
-              ( \incoming action -> do
-                  concurrently_
-                    (action $ Network{broadcast = \m -> atomically $ modifyTVar' sentMessages (`snoc` m)})
-                    (incoming (Authenticated (ReliableMsg (fromList [0, 1]) (Data "node-2" msg)) bob))
-              )
-              noop
-              $ \Network{broadcast} -> do
-                threadDelay 1
-                broadcast (Data "node-1" msg)
-            Vector.toList <$> readTVarIO sentMessages
+
+            (receive, getSentMessages, baseNetwork) <- mockNetwork
+            NewNetwork{broadcast} <- newReliability nullTracer alicePersistence alice [bob] baseNetwork
+
+            concurrently_
+              (receive [Authenticated (ReliableMsg (fromList [0, 1]) (Data "node-2" msg)) bob])
+              (threadDelay 1 >> broadcast (Data "node-1" msg))
+
+            getSentMessages
 
       receivedMsgs `shouldBe` [ReliableMsg (fromList [1, 1]) (Data "node-1" msg)]
 
@@ -153,22 +136,14 @@ spec = parallel $ do
                 }
 
         receivedMsgs <- do
-          sentMessages <- newTVarIO empty
-          withReliability
-            nullTracer
-            messagePersistence
-            alice
-            [bob]
-            ( \incoming action -> do
-                concurrently_
-                  (action $ Network{broadcast = \m -> atomically $ modifyTVar' sentMessages (`snoc` m)})
-                  (incoming (Authenticated (ReliableMsg (fromList [0, 1]) (Data "node-2" msg)) bob))
-            )
-            noop
-            $ \Network{broadcast} -> do
-              threadDelay 1
-              broadcast (Data "node-1" msg)
-          Vector.toList <$> readTVarIO sentMessages
+          (receive, getSentMessages, baseNetwork) <- mockNetwork
+          NewNetwork{broadcast} <- newReliability nullTracer messagePersistence alice [bob] baseNetwork
+
+          concurrently_
+            (receive [Authenticated (ReliableMsg (fromList [0, 1]) (Data "node-2" msg)) bob])
+            (threadDelay 1 >> broadcast (Data "node-1" msg))
+
+          getSentMessages
 
         receivedMsgs `shouldBe` [ReliableMsg (fromList [1, 1]) (Data "node-1" msg)]
 
@@ -177,6 +152,8 @@ spec = parallel $ do
 
         doesFileExist (tmpDir </> "acks") `shouldReturn` True
         load `shouldReturn` Just (fromList [1, 1])
+
+  prop "stress test networking layer" prop_stressTest
  where
   reloadAll :: FilePath -> IO [Heartbeat (Heartbeat String)]
   reloadAll fileName =
@@ -188,38 +165,30 @@ noop = const $ pure ()
 
 aliceReceivesMessages :: [Authenticated (ReliableMsg (Heartbeat msg))] -> [Authenticated (Heartbeat msg)]
 aliceReceivesMessages messages = runSimOrThrow $ do
-  receivedMessages <- newTVarIO empty
   alicePersistence <- mockMessagePersistence 3
 
-  let baseNetwork incoming _ = mapM incoming messages
+  (receive, _, baseNetwork) <- mockNetwork
+  aliceReliability <- newReliability nullTracer alicePersistence alice [bob, carol] baseNetwork
 
-      aliceReliabilityStack =
-        withReliability
-          nullTracer
-          alicePersistence
-          alice
-          [bob, carol]
-          baseNetwork
+  (recordMesage, getRecordedMessages) <- messageRecorder
+  setCallback (onMessageReceived aliceReliability) recordMesage
 
-  void $ aliceReliabilityStack (captureIncoming receivedMessages) $ \_action ->
-    pure [()]
+  receive messages
 
-  Vector.toList <$> readTVarIO receivedMessages
+  getRecordedMessages
 
-captureIncoming :: MonadSTM m => TVar m (Vector p) -> p -> m ()
-captureIncoming receivedMessages msg =
-  atomically $ modifyTVar' receivedMessages (`snoc` msg)
-
-capturePayload :: MonadSTM m => TVar m (Vector msg) -> Either Connectivity (Authenticated (Heartbeat msg)) -> m ()
-capturePayload receivedMessages = \case
-  Right Authenticated{payload = Data _ msg} ->
-    atomically $ modifyTVar' receivedMessages (`snoc` msg)
-  _ -> pure ()
-
-waitForAllMessages :: MonadSTM m => [msg] -> TVar m (Vector msg) -> m ()
-waitForAllMessages expectedMessages capturedMessages = atomically $ do
-  msgs <- readTVar capturedMessages
-  check $ length msgs == length expectedMessages
+mockNetwork :: MonadSTM m => m ([inbound] -> m (), m [outbound], NewNetwork m inbound outbound)
+mockNetwork = do
+  outV <- newTVarIO []
+  onMessageReceived <- newCallback
+  pure
+    ( \msgs -> forM_ msgs $ callback onMessageReceived
+    , reverse <$> readTVarIO outV
+    , NewNetwork
+        { broadcast = \msg -> atomically $ modifyTVar' outV (msg :)
+        , onMessageReceived
+        }
+    )
 
 captureTraces ::
   MonadSTM m =>
