@@ -312,7 +312,6 @@ test-suite tests
     Hydra.Model.Payment
     Hydra.ModelSpec
     Hydra.Network.AuthenticateSpec
-    Hydra.Network.BehaviorReliabilitySpec
     Hydra.Network.HeartbeatSpec
     Hydra.Network.ReliabilitySpec
     Hydra.NetworkSpec

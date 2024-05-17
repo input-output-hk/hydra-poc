@@ -255,6 +255,7 @@ prop_stressTest aliceMessages bobMessages seed =
   within 1000000 $
     msgReceivedByBob === aliceMessages
       -- TODO: capture and show traces & counterexample (unlines $ show <$> reverse traces)
+      & counterexample "Bob received messages not matching Alice's sent messages."
       & tabulate "Messages from Alice to Bob" ["< " <> show ((length msgReceivedByBob `div` 10 + 1) * 10)]
       & tabulate "Messages from Bob to Alice" ["< " <> show ((length msgReceivedByAlice `div` 10 + 1) * 10)]
  where
@@ -268,8 +269,19 @@ prop_stressTest aliceMessages bobMessages seed =
 
     (,) <$> getAliceMessages <*> getBobMessages
 
-  createSometimesFailingNetwork :: m (Party -> m (TestNetworkClient m))
-  createSometimesFailingNetwork = undefined
+  createSometimesFailingNetwork :: MonadSTM m => m (Party -> m (TestNetworkClient m))
+  createSometimesFailingNetwork = do
+    peers <- newTVarIO []
+    pure $ \party -> do
+      atomically $ modifyTVar' peers (party :)
+      pure $
+        TestNetworkClient
+          { sendAll = mapM_ $ \i -> do
+              x <- readTVarIO peers
+              trace ("should send to " <> show x) pure ()
+          , getAllReceived = pure []
+          }
+
   -- failingNetwork peer (readQueue, writeQueue) callback action = do
   --   seedV <- newTVarIO $ mkStdGen seed
   --   withAsync
