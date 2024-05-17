@@ -16,12 +16,12 @@ import Data.Map qualified as Map
 import Data.Sequence.Strict ((|>))
 import Data.Vector (Vector, empty, fromList, head, replicate, snoc)
 import Data.Vector qualified as Vector
-import Hydra.Network (Network (..), NetworkCallback)
+import Hydra.Network (Network (..), NewNetwork (..), NodeId (..), callback, newCallback, setCallback)
 import Hydra.Network.Authenticate (Authenticated (..))
-import Hydra.Network.Heartbeat (Heartbeat (..), withHeartbeat)
+import Hydra.Network.Heartbeat (Heartbeat (..), newHeartbeat)
 import Hydra.Network.Message (Connectivity)
-import Hydra.Network.Reliability (MessagePersistence (..), ReliabilityLog (..), ReliableMsg (..), withReliability)
-import Hydra.Node.Network (withFlipHeartbeats)
+import Hydra.Network.Reliability (MessagePersistence (..), ReliabilityLog (..), ReliableMsg (..), newReliability, withReliability)
+import Hydra.Node.Network (newFlipHeartbeats)
 import Hydra.NodeSpec (messageRecorder)
 import Hydra.Party (Party)
 import Hydra.Persistence (
@@ -252,31 +252,41 @@ prop_stressTest aliceMessages bobMessages seed =
   (msgReceivedByAlice, msgReceivedByBob) = runSimOrThrow $ do
     connect <- createSometimesFailingNetwork
     (recordAliceMessage, getAliceMessages) <- messageRecorder
-    aliceNetwork <- connect alice recordAliceMessage
+    aliceNetwork <- connect alice
+    -- aliceNetwork <- reliableNetwork alice [bob] =<< connect alice
+    setCallback (onMessageReceived aliceNetwork) recordAliceMessage
 
     (recordBobMessage, getBobMessages) <- messageRecorder
-    bobNetwork <- connect bob recordBobMessage
+    bobNetwork <- connect bob
+    -- bobNetwork <- reliableNetwork bob [alice] =<< connect bob
+    setCallback (onMessageReceived bobNetwork) recordBobMessage
 
     sendAll aliceNetwork aliceMessages
       `concurrently_` sendAll bobNetwork bobMessages
 
-    (,) <$> getAliceMessages <*> getBobMessages
+    (,) <$> getAliceMessages <*> (onlyData <$> getBobMessages)
 
-  createSometimesFailingNetwork :: MonadSTM m => m (Party -> NetworkCallback msg m -> m (Network m msg))
+  onlyData = map (\Authenticated{payload} -> payload)
+
+  createSometimesFailingNetwork :: MonadSTM m => m (Party -> m (NewNetwork m (Authenticated msg) msg))
   createSometimesFailingNetwork = do
     stdGenV <- newTVarIO $ mkStdGen seed
     peerMapV <- newTVarIO mempty
-    pure $ \party callback -> do
-      atomically $ modifyTVar' peerMapV (Map.insert party callback)
+    pure $ \party -> do
+      onMessageReceived <- newCallback
+      let receiveMessage msg = do
+            callback onMessageReceived msg
+      atomically $ modifyTVar' peerMapV (Map.insert party receiveMessage)
       pure
-        Network
+        NewNetwork
           { broadcast = \msg -> do
-              callbacks <- readTVarIO peerMapV
-              forM_ (Map.toList callbacks) $ \(p, cb) -> do
+              peers <- readTVarIO peerMapV
+              forM_ (Map.toList peers) $ \(p, send) -> do
                 -- drop 2% of messages
                 r <- randomNumber stdGenV
-                unless (p == party && r < 0.02) $
-                  cb msg
+                unless (p == party && r < 1) $
+                  send (Authenticated msg party) -- calls receiveMessage on the other end
+          , onMessageReceived
           }
 
   randomNumber stdGenV = atomically $ do
@@ -285,12 +295,22 @@ prop_stressTest aliceMessages bobMessages seed =
     writeTVar stdGenV newGenSeed
     pure res
 
-  sendAll Network{broadcast} msgs =
+  sendAll NewNetwork{broadcast} msgs =
     forM_ msgs $ \m -> do
       broadcast m
       threadDelay 0.1
 
-  reliabilityStack persistence underlyingNetwork tracer nodeId party peers =
-    withHeartbeat nodeId $
-      withFlipHeartbeats $
-        withReliability tracer persistence party peers underlyingNetwork
+-- | Implementation of the reliability stack using the 'NewNetwork' interface
+reliableNetwork ::
+  MonadSTM m =>
+  Party ->
+  [Party] ->
+  NewNetwork m (Authenticated (ReliableMsg (Heartbeat inbound))) (ReliableMsg (Heartbeat outbound)) ->
+  m (NewNetwork m (Either Connectivity (Authenticated inbound)) outbound)
+reliableNetwork party peers underlyingNetwork = do
+  persistence <- mockMessagePersistence (length peers)
+  newHeartbeat nodeId
+    =<< newFlipHeartbeats
+    =<< newReliability nullTracer persistence party peers underlyingNetwork
+ where
+  nodeId = NodeId (show party)

@@ -9,25 +9,18 @@
 --
 -- Incoming and outgoing messages are modelled as 'Message' data type.
 module Hydra.Network (
-  -- * Types
-  Network (..),
-  NetworkComponent,
-  NetworkCallback,
+  module Hydra.Network,
   IP,
   Host (..),
   NodeId (..),
-  showHost,
-  readHost,
   PortNumber,
-  readPort,
-
-  -- * Utility functions
   close,
 ) where
 
 import Hydra.Prelude hiding (show)
 
 import Cardano.Ledger.Orphans ()
+import Control.Concurrent.Class.MonadSTM (newTVarIO, readTVarIO, writeTVar)
 import Data.IP (IP, toIPv4w)
 import Data.Text (pack, unpack)
 import Network.Socket (PortNumber, close)
@@ -40,6 +33,42 @@ deriving anyclass instance ToJSON IP
 deriving anyclass instance FromJSON IP
 
 -- * Hydra network interface
+
+-- | New way to structure network components.
+data NewNetwork m inmsg outmsg = NewNetwork
+  { broadcast :: outmsg -> m ()
+  -- ^ Send a message to all everyone on the network.
+  , onMessageReceived :: NewCallback m inmsg
+  -- ^ Register callback to be called when a message is received.
+  }
+
+newNetwork :: MonadSTM m => m (NewNetwork m inmsg outmsg)
+newNetwork = do
+  onMessageReceived <- newCallback
+  pure $
+    NewNetwork
+      { broadcast = \_ -> pure ()
+      , onMessageReceived
+      }
+
+newtype NewCallback m a = NewCallback (TVar m (a -> m ()))
+
+newCallback :: MonadSTM m => m (NewCallback m a)
+newCallback =
+  newCallback' $ \_ -> pure ()
+
+newCallback' :: MonadSTM m => (a -> m ()) -> m (NewCallback m a)
+newCallback' cb =
+  NewCallback <$> newTVarIO cb
+
+setCallback :: MonadSTM m => NewCallback m a -> (a -> m ()) -> m ()
+setCallback (NewCallback tv) cb =
+  atomically $ writeTVar tv cb
+
+callback :: MonadSTM m => NewCallback m a -> a -> m ()
+callback (NewCallback tv) v = do
+  cb <- readTVarIO tv
+  cb v
 
 -- | Handle to interface with the hydra network and send messages "off chain".
 newtype Network m msg = Network

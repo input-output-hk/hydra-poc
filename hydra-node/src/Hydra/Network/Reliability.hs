@@ -107,7 +107,7 @@ import Data.Vector (
   (!?),
  )
 import Hydra.Logging (traceWith)
-import Hydra.Network (Network (..), NetworkComponent)
+import Hydra.Network (Network (..), NetworkComponent, NewNetwork)
 import Hydra.Network.Authenticate (Authenticated (..))
 import Hydra.Network.Heartbeat (Heartbeat (..), isPing)
 import Hydra.Party (Party)
@@ -203,6 +203,20 @@ mkMessagePersistence numberOfParties msgPersistence ackPersistence =
     , appendMessage = \msg -> do
         append msgPersistence msg
     }
+
+newReliability ::
+  -- | Tracer for logging messages.
+  Tracer m ReliabilityLog ->
+  -- | Our persistence handle
+  MessagePersistence m outbound ->
+  -- | Our own party identifier.
+  Party ->
+  -- | Other parties' identifiers.
+  [Party] ->
+  -- | Underlying network component providing consuming and sending channels.
+  NewNetwork m (Authenticated (ReliableMsg (Heartbeat inbound))) (ReliableMsg (Heartbeat outbound)) ->
+  m (NewNetwork m (Authenticated (Heartbeat inbound)) (Heartbeat outbound))
+newReliability = undefined
 
 -- | Middleware function to handle message counters tracking and resending logic.
 --

@@ -24,7 +24,7 @@ import Cardano.Crypto.Util (SignableRepresentation (getSignableRepresentation))
 import Control.Concurrent.Class.MonadSTM (modifyTVar', newTVarIO, readTVarIO, writeTVar)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
-import Hydra.Network (Network (..), NetworkCallback, NetworkComponent, NodeId)
+import Hydra.Network (Network (..), NetworkCallback, NetworkComponent, NewNetwork, NodeId)
 import Hydra.Network.Message (Connectivity (Connected, Disconnected))
 
 data HeartbeatState = HeartbeatState
@@ -77,6 +77,12 @@ heartbeatDelay = 0.5
 -- NOTE: This could be made configurable.
 livenessDelay :: DiffTime
 livenessDelay = 3
+
+newHeartbeat ::
+  NodeId ->
+  NewNetwork m (Heartbeat inbound) (Heartbeat outbound) ->
+  m (NewNetwork m (Either Connectivity inbound) outbound)
+newHeartbeat = undefined
 
 -- | Wrap a lower-level `NetworkComponent` and handle sending/receiving of heartbeats.
 --

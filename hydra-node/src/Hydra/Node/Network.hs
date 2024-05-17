@@ -61,13 +61,7 @@
 --           │                                   ▼
 --
 -- @
-module Hydra.Node.Network (
-  NetworkConfiguration (..),
-  withNetwork,
-  withFlipHeartbeats,
-  configureMessagePersistence,
-  acksFile,
-) where
+module Hydra.Node.Network where
 
 import Hydra.Prelude hiding (fromList, replicate)
 
@@ -76,7 +70,7 @@ import Hydra.Crypto (HydraKey, SigningKey)
 import Hydra.Ledger (IsTx)
 import Hydra.Logging (traceWith)
 import Hydra.Logging.Messages (HydraLog (..))
-import Hydra.Network (Host (..), IP, NetworkComponent, NodeId, PortNumber)
+import Hydra.Network (Host (..), IP, NetworkComponent, NewNetwork (NewNetwork, onMessageReceived), NodeId, PortNumber)
 import Hydra.Network.Authenticate (Authenticated (..), Signed, withAuthentication)
 import Hydra.Network.Heartbeat (Heartbeat (..), withHeartbeat)
 import Hydra.Network.Message (
@@ -193,6 +187,12 @@ withFlipHeartbeats withBaseNetwork callback =
   unwrapHeartbeats = \case
     Authenticated (Data nid msg) party -> callback $ Data nid (Authenticated msg party)
     Authenticated (Ping nid) _ -> callback $ Ping nid
+
+newFlipHeartbeats ::
+  NewNetwork m (Authenticated (Heartbeat inbound)) outbound ->
+  m (NewNetwork m (Heartbeat (Authenticated inbound)) outbound)
+newFlipHeartbeats baseNetwork =
+  undefined
 
 -- | Where are the messages stored, relative to given directory.
 storedMessagesFile :: FilePath -> FilePath
