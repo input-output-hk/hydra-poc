@@ -22,6 +22,7 @@ import Data.Aeson (
 import Data.List (maximum)
 import Data.Set qualified as Set
 import Hydra.Chain (ChainStateType, IsChainState (..))
+import Hydra.Events (HasEventId (..))
 import Hydra.Ledger (
   ChainSlot (..),
   IsTx (..),
@@ -89,6 +90,9 @@ instance FromCBOR SimpleTx where
       <$> fromCBOR
       <*> fromCBOR
       <*> fromCBOR
+
+instance HasEventId SimpleTx where
+  getEventId = fromInteger . txSimpleId
 
 -- * Simple chain state
 
