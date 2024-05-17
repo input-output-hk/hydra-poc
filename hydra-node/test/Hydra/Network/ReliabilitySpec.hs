@@ -253,7 +253,7 @@ prop_stressTest aliceMessages bobMessages seed =
               forM_ (Map.toList peers) $ \(p, send) -> do
                 -- drop 2% of messages
                 r <- randomNumber stdGenV
-                unless (p == party && r < 1) $
+                unless (p == party && r < 0.02) $
                   send (Authenticated msg party) -- calls receiveMessage on the other end
           , onMessageReceived
           }
@@ -277,7 +277,7 @@ reliableNetwork ::
   NewNetwork m (Authenticated (ReliableMsg (Heartbeat inbound))) (ReliableMsg (Heartbeat outbound)) ->
   m (NewNetwork m (Either Connectivity (Authenticated inbound)) outbound)
 reliableNetwork party peers underlyingNetwork = do
-  persistence <- mockMessagePersistence (length peers)
+  persistence <- mockMessagePersistence (length peers + 1)
   newHeartbeat nodeId
     =<< newFlipHeartbeats
     =<< newReliability nullTracer persistence party peers underlyingNetwork
