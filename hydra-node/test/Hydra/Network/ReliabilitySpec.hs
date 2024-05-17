@@ -8,6 +8,7 @@ import Control.Monad.IOSim (runSimOrThrow)
 import Control.Tracer (Tracer (..), nullTracer)
 import Data.Map qualified as Map
 import Data.Sequence.Strict ((|>))
+import Data.Set qualified as Set
 import Data.Vector (fromList, head, replicate)
 import Hydra.Network (NewNetwork (..), NodeId (..), callback, newCallback, setCallback)
 import Hydra.Network.Authenticate (Authenticated (..))
@@ -37,6 +38,7 @@ import Test.QuickCheck (
   within,
   (===),
  )
+import Test.QuickCheck.Property (conjoin)
 
 spec :: Spec
 spec = parallel $ do
@@ -209,33 +211,45 @@ mockMessagePersistence numberOfParties = do
       , appendMessage = \msg -> atomically $ modifyTVar' messages (|> msg)
       }
 
-prop_stressTest :: [Int] -> [Int] -> Int -> Property
-prop_stressTest aliceMessages bobMessages seed =
+prop_stressTest :: [Int] -> [Int] -> [Int] -> Int -> Property
+prop_stressTest aliceMessages bobMessages carolMessages seed =
   within 1000000 $
-    msgReceivedByBob === aliceMessages
+    conjoin
+      [ Set.fromList aliceReceived === Set.fromList bobMessages <> Set.fromList carolMessages
+          & counterexample "alice received not matching what bob and carol sent"
+      , Set.fromList bobReceived === Set.fromList aliceMessages <> Set.fromList carolMessages
+          & counterexample "bob received not matching what alice and carol sent"
+      , Set.fromList carolReceived === Set.fromList aliceMessages <> Set.fromList bobMessages
+          & counterexample "carol received not matching what alice and bob sent"
+      ]
       -- TODO: capture and show traces & counterexample (unlines $ show <$> reverse traces)
-      & counterexample "Bob received messages not matching Alice's sent messages."
-      & tabulate "Messages from Alice to Bob" ["< " <> show ((length msgReceivedByBob `div` 10 + 1) * 10)]
-      & tabulate "Messages from Bob to Alice" ["< " <> show ((length msgReceivedByAlice `div` 10 + 1) * 10)]
+      & tabulate "Messages from Alice to Bob" ["< " <> show ((length bobReceived `div` 10 + 1) * 10)]
+      & tabulate "Messages from Bob to Alice" ["< " <> show ((length aliceReceived `div` 10 + 1) * 10)]
  where
-  (msgReceivedByAlice, msgReceivedByBob) = runSimOrThrow $ do
+  (aliceReceived, bobReceived, carolReceived) = runSimOrThrow $ do
     connect <- createSometimesFailingNetwork
     (recordAliceMessage, getAliceMessages) <- messageRecorder
-    -- aliceNetwork <- connect alice
-    aliceNetwork <- reliableNetwork alice [bob] =<< connect alice
+    aliceNetwork <- connect alice
+    -- aliceNetwork <- reliableNetwork alice [bob, carol] =<< connect alice
     setCallback (onMessageReceived aliceNetwork) recordAliceMessage
 
     (recordBobMessage, getBobMessages) <- messageRecorder
-    -- bobNetwork <- connect bob
-    bobNetwork <- reliableNetwork bob [alice] =<< connect bob
+    bobNetwork <- connect bob
+    -- bobNetwork <- reliableNetwork bob [alice, carol] =<< connect bob
     setCallback (onMessageReceived bobNetwork) recordBobMessage
+
+    (recordCarolMessage, getCarolMessages) <- messageRecorder
+    carolNetwork <- connect carol
+    -- carolNetwork <- reliableNetwork carol [alice, bob] =<< connect carol
+    setCallback (onMessageReceived carolNetwork) recordCarolMessage
 
     sendAll aliceNetwork aliceMessages
       `concurrently_` sendAll bobNetwork bobMessages
+      `concurrently_` sendAll carolNetwork carolMessages
 
-    (,) <$> getAliceMessages <*> (onlyData <$> getBobMessages)
+    (,,) <$> (onlyData <$> getAliceMessages) <*> (onlyData <$> getBobMessages) <*> (onlyData <$> getCarolMessages)
 
-  onlyData = map (\Authenticated{payload} -> payload) . rights
+  onlyData = map (\Authenticated{payload} -> payload)
 
   createSometimesFailingNetwork :: MonadSTM m => m (Party -> m (NewNetwork m (Authenticated msg) msg))
   createSometimesFailingNetwork = do
@@ -253,7 +267,7 @@ prop_stressTest aliceMessages bobMessages seed =
               forM_ (Map.toList peers) $ \(p, send) -> do
                 -- drop 2% of messages
                 r <- randomNumber stdGenV
-                unless (p == party && r < 0.02) $
+                unless (p == party && r < 1) $
                   send (Authenticated msg party) -- calls receiveMessage on the other end
           , onMessageReceived
           }
