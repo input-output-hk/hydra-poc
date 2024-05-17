@@ -245,6 +245,11 @@ mockMessagePersistence numberOfParties = do
       , appendMessage = \msg -> atomically $ modifyTVar' messages (|> msg)
       }
 
+data TestNetworkClient m = TestNetworkClient
+  { sendAll :: [Int] -> m ()
+  , getAllReceived :: m [Int]
+  }
+
 prop_stressTest :: [Int] -> [Int] -> Int -> Property
 prop_stressTest aliceMessages bobMessages seed =
   within 1000000 $
@@ -253,24 +258,18 @@ prop_stressTest aliceMessages bobMessages seed =
       & tabulate "Messages from Alice to Bob" ["< " <> show ((length msgReceivedByBob `div` 10 + 1) * 10)]
       & tabulate "Messages from Bob to Alice" ["< " <> show ((length msgReceivedByAlice `div` 10 + 1) * 10)]
  where
-  (msgReceivedByAlice, msgReceivedByBob) = runSimOrThrow $
-    withSometimesFailingNetwork $ \connect -> do
-      (aliceSends, getAliceMessages) <- connect alice
-      (bobSends, getBobMessages) <- connect bob
+  (msgReceivedByAlice, msgReceivedByBob) = runSimOrThrow $ do
+    connect <- createSometimesFailingNetwork
+    TestNetworkClient{sendAll = aliceSends, getAllReceived = getAliceMessages} <- connect alice
+    TestNetworkClient{sendAll = bobSends, getAllReceived = getBobMessages} <- connect bob
 
-      aliceSends aliceMessages
-        `concurrently_` bobSends bobMessages
+    aliceSends aliceMessages
+      `concurrently_` bobSends bobMessages
 
-      (,) <$> getAliceMessages <*> getBobMessages
+    (,) <$> getAliceMessages <*> getBobMessages
 
-  withSometimesFailingNetwork :: ((Party -> m ([Int] -> m (), m [Int])) -> m a) -> m a
-  withSometimesFailingNetwork cont = undefined
-
-  -- reliabilityStack persistence underlyingNetwork tracer nodeId party peers =
-  --   withHeartbeat nodeId $
-  --     withFlipHeartbeats $
-  --       withReliability tracer persistence party peers underlyingNetwork
-
+  createSometimesFailingNetwork :: m (Party -> m (TestNetworkClient m))
+  createSometimesFailingNetwork = undefined
   -- failingNetwork peer (readQueue, writeQueue) callback action = do
   --   seedV <- newTVarIO $ mkStdGen seed
   --   withAsync
@@ -296,3 +295,8 @@ prop_stressTest aliceMessages bobMessages seed =
     forM_ msgs $ \m -> do
       broadcast (Data partyName m)
       threadDelay 0.1
+
+-- reliabilityStack persistence underlyingNetwork tracer nodeId party peers =
+--   withHeartbeat nodeId $
+--     withFlipHeartbeats $
+--       withReliability tracer persistence party peers underlyingNetwork
