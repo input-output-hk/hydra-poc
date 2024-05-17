@@ -1,11 +1,12 @@
 module Hydra.Network.ReliabilitySpec where
 
-import Hydra.Prelude hiding (empty, fromList, head, replicate, unlines)
+import Hydra.Prelude hiding (empty, fromList, head, label, replicate, unlines)
 import Test.Hydra.Prelude
 
 import Control.Concurrent.Class.MonadSTM (MonadSTM (readTVarIO), modifyTVar', newTVarIO, writeTVar)
 import Control.Monad.IOSim (runSimOrThrow)
 import Control.Tracer (Tracer (..), nullTracer)
+import Data.List (nub)
 import Data.Map qualified as Map
 import Data.Sequence.Strict ((|>))
 import Data.Set qualified as Set
@@ -33,7 +34,10 @@ import Test.QuickCheck (
   Property,
   collect,
   counterexample,
+  cover,
   generate,
+  label,
+  tabulate,
   within,
   (===),
  )
@@ -210,18 +214,26 @@ mockMessagePersistence numberOfParties = do
       , appendMessage = \msg -> atomically $ modifyTVar' messages (|> msg)
       }
 
-prop_stressTest :: [Int] -> [Int] -> [Int] -> Int -> Property
-prop_stressTest aliceMessages bobMessages carolMessages seed =
+prop_stressTest :: Int -> Int -> Int -> Int -> Property
+prop_stressTest nAlice nBob nCarol seed =
   within 1000000 $
     conjoin
-      [ Set.fromList aliceReceived === Set.fromList bobMessages <> Set.fromList carolMessages
+      [ Set.fromList (unAuthenticated aliceReceived) === Set.fromList (bobMessages <> carolMessages)
           & counterexample "alice received not matching what bob and carol sent"
-      , Set.fromList bobReceived === Set.fromList aliceMessages <> Set.fromList carolMessages
+      , Set.fromList (unAuthenticated bobReceived) === Set.fromList (aliceMessages <> carolMessages)
           & counterexample "bob received not matching what alice and carol sent"
-      , Set.fromList carolReceived === Set.fromList aliceMessages <> Set.fromList bobMessages
-          & counterexample "carol received not matching what alice and bob sent"
+      , Set.fromList (unAuthenticated carolReceived) === Set.fromList (aliceMessages <> bobMessages)
+          & counterexample
+            "carol received not matching what alice and bob sent"
       ]
+      & cover 1 (duplicates aliceReceived > 0) "resends seen by alice"
  where
+  aliceMessages = [1 .. nAlice]
+  bobMessages = [1 .. nBob]
+  carolMessages = [1 .. nCarol]
+
+  duplicates msgs = length msgs - length (nub msgs)
+
   -- TODO: capture and show traces & counterexample (unlines $ show <$> reverse traces)
 
   (aliceReceived, bobReceived, carolReceived) = runSimOrThrow $ do
@@ -247,7 +259,9 @@ prop_stressTest aliceMessages bobMessages carolMessages seed =
 
     (,,) <$> (onlyData <$> getAliceMessages) <*> (onlyData <$> getBobMessages) <*> (onlyData <$> getCarolMessages)
 
-  onlyData = map (\Authenticated{payload} -> payload) . rights
+  onlyData = rights
+
+  unAuthenticated = map (\Authenticated{payload} -> payload)
 
   createSometimesFailingNetwork :: MonadSTM m => m (Party -> m (NewNetwork m (Authenticated msg) msg))
   createSometimesFailingNetwork = do
@@ -279,7 +293,7 @@ prop_stressTest aliceMessages bobMessages carolMessages seed =
   sendAll NewNetwork{broadcast} msgs =
     forM_ msgs $ \m -> do
       broadcast m
-      threadDelay 0.1
+      threadDelay 4 -- Longer so we have pings
 
 -- | Implementation of the reliability stack using the 'NewNetwork' interface
 reliableNetwork ::

@@ -222,7 +222,7 @@ newReliability tracer MessagePersistence{saveAcks, loadAcks, appendMessage, load
   sentMessages <- loadMessages >>= newTVarIO . Seq.fromList
   resendQ <- newTQueueIO
   let ourIndex = fromMaybe (error "This cannot happen because we constructed the list with our party inside.") (findPartyIndex me)
-  let resend = writeTQueue resendQ
+  let resend = error "RESEND" >> writeTQueue resendQ
 
   onMessageReceived <- newCallback
   setCallback baseCallback $
