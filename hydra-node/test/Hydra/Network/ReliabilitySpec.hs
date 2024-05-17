@@ -4,26 +4,25 @@ import Hydra.Prelude hiding (empty, fromList, head, replicate, unlines)
 import Test.Hydra.Prelude
 
 import Control.Concurrent.Class.MonadSTM (
-  MonadSTM (readTQueue, readTVarIO, writeTQueue),
+  MonadSTM (readTVarIO),
   check,
   modifyTVar',
-  newTQueueIO,
   newTVarIO,
   writeTVar,
  )
-import Control.Monad.Class.MonadAsync (forConcurrently_)
 import Control.Monad.IOSim (runSimOrThrow)
 import Control.Tracer (Tracer (..), nullTracer)
+import Data.Map qualified as Map
 import Data.Sequence.Strict ((|>))
 import Data.Vector (Vector, empty, fromList, head, replicate, snoc)
 import Data.Vector qualified as Vector
-import Hydra.Logging (traceInTVar)
-import Hydra.Network (Network (..))
+import Hydra.Network (Network (..), NetworkCallback)
 import Hydra.Network.Authenticate (Authenticated (..))
 import Hydra.Network.Heartbeat (Heartbeat (..), withHeartbeat)
 import Hydra.Network.Message (Connectivity)
 import Hydra.Network.Reliability (MessagePersistence (..), ReliabilityLog (..), ReliableMsg (..), withReliability)
 import Hydra.Node.Network (withFlipHeartbeats)
+import Hydra.NodeSpec (messageRecorder)
 import Hydra.Party (Party)
 import Hydra.Persistence (
   Persistence (..),
@@ -33,7 +32,6 @@ import Hydra.Persistence (
  )
 import System.Directory (doesFileExist)
 import System.FilePath ((</>))
-import System.Random (mkStdGen, uniformR)
 import Test.Hydra.Fixture (alice, bob, carol)
 import Test.QuickCheck (
   Positive (Positive),
@@ -45,7 +43,6 @@ import Test.QuickCheck (
   within,
   (===),
  )
-import Prelude (unlines)
 
 spec :: Spec
 spec = parallel $ do
@@ -245,13 +242,6 @@ mockMessagePersistence numberOfParties = do
       , appendMessage = \msg -> atomically $ modifyTVar' messages (|> msg)
       }
 
-data TestNetworkClient m = TestNetworkClient
-  { party :: Party
-  , sendAll :: [Int] -> m ()
-  , getAllReceived :: m [Int]
-  , onMessage :: Int -> m ()
-  }
-
 prop_stressTest :: [Int] -> [Int] -> Int -> Property
 prop_stressTest aliceMessages bobMessages seed =
   within 1000000 $
@@ -263,33 +253,30 @@ prop_stressTest aliceMessages bobMessages seed =
  where
   (msgReceivedByAlice, msgReceivedByBob) = runSimOrThrow $ do
     connect <- createSometimesFailingNetwork
-    TestNetworkClient{sendAll = aliceSends, getAllReceived = getAliceMessages} <- connect alice
-    TestNetworkClient{sendAll = bobSends, getAllReceived = getBobMessages} <- connect bob
+    (recordAliceMessage, getAliceMessages) <- messageRecorder
+    aliceNetwork <- connect alice recordAliceMessage
 
-    aliceSends aliceMessages
-      `concurrently_` bobSends bobMessages
+    (recordBobMessage, getBobMessages) <- messageRecorder
+    bobNetwork <- connect bob recordBobMessage
+
+    sendAll aliceNetwork aliceMessages
+      `concurrently_` sendAll bobNetwork bobMessages
 
     (,) <$> getAliceMessages <*> getBobMessages
 
-  -- NetworkComponent m (Authenticated (ReliableMsg (Heartbeat inbound))) (ReliableMsg (Heartbeat outbound)) a
-  createSometimesFailingNetwork :: MonadSTM m => m (Party -> m (TestNetworkClient m))
+  createSometimesFailingNetwork :: MonadSTM m => m (Party -> NetworkCallback msg m -> m (Network m msg))
   createSometimesFailingNetwork = do
-    peers <- newTVarIO []
-    pure $ \party -> do
-      receivedMessages <- newTVarIO []
-      let peer =
-            TestNetworkClient
-              { party
-              , sendAll = mapM_ $ \i -> do
-                  ps <- readTVarIO peers
-                  forM_ ps (\TestNetworkClient{party = otherParty, onMessage} -> unless (party == otherParty) $ onMessage i)
-              , getAllReceived = do
-                  messages <- readTVarIO receivedMessages
-                  pure (reverse messages)
-              , onMessage = \i -> atomically $ modifyTVar' receivedMessages (i :)
-              }
-      atomically $ modifyTVar' peers (peer :)
-      pure peer
+    peerMapV <- newTVarIO mempty
+    pure $ \party callback -> do
+      atomically $ modifyTVar' peerMapV (Map.insert party callback)
+      pure
+        Network
+          { broadcast = \msg -> do
+              callbacks <- readTVarIO peerMapV
+              forM_ (Map.toList callbacks) $ \(p, cb) ->
+                unless (p == party) $
+                  cb msg
+          }
 
   -- failingNetwork peer (readQueue, writeQueue) callback action = do
   --   seedV <- newTVarIO $ mkStdGen seed
@@ -312,9 +299,9 @@ prop_stressTest aliceMessages bobMessages seed =
   --   writeTVar seed' newGenSeed
   --   pure res
 
-  sendAll Network{broadcast} partyName msgs =
+  sendAll Network{broadcast} msgs =
     forM_ msgs $ \m -> do
-      broadcast (Data partyName m)
+      broadcast m
       threadDelay 0.1
 
   reliabilityStack persistence underlyingNetwork tracer nodeId party peers =

@@ -5,7 +5,7 @@ module Hydra.NodeSpec where
 import Hydra.Prelude hiding (label)
 import Test.Hydra.Prelude
 
-import Control.Concurrent.Class.MonadSTM (MonadLabelledSTM, labelTVarIO, modifyTVar, newTVarIO, readTVarIO)
+import Control.Concurrent.Class.MonadSTM (MonadLabelledSTM, labelTVarIO, modifyTVar, modifyTVar', newTVarIO, readTVarIO)
 import Hydra.API.ClientInput (ClientInput (..))
 import Hydra.API.Server (Server (..))
 import Hydra.API.ServerOutput (ServerOutput (..))
@@ -423,12 +423,12 @@ recordServerOutputs node = do
   (record, query) <- messageRecorder
   pure (node{server = Server{sendOutput = record}}, query)
 
-messageRecorder :: IO (msg -> IO (), IO [msg])
+messageRecorder :: MonadSTM m => m (msg -> m (), m [msg])
 messageRecorder = do
-  ref <- newIORef []
-  pure (appendMsg ref, readIORef ref)
+  ref <- newTVarIO []
+  pure (appendMsg ref, readTVarIO ref)
  where
-  appendMsg ref x = atomicModifyIORef' ref $ \old -> (old <> [x], ())
+  appendMsg ref x = atomically $ modifyTVar' ref $ \old -> old <> [x]
 
 throwExceptionOnPostTx ::
   IsChainState tx =>
