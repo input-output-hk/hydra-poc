@@ -246,8 +246,10 @@ mockMessagePersistence numberOfParties = do
       }
 
 data TestNetworkClient m = TestNetworkClient
-  { sendAll :: [Int] -> m ()
+  { party :: Party
+  , sendAll :: [Int] -> m ()
   , getAllReceived :: m [Int]
+  , onMessage :: Int -> m ()
   }
 
 prop_stressTest :: [Int] -> [Int] -> Int -> Property
@@ -269,18 +271,25 @@ prop_stressTest aliceMessages bobMessages seed =
 
     (,) <$> getAliceMessages <*> getBobMessages
 
+  -- NetworkComponent m (Authenticated (ReliableMsg (Heartbeat inbound))) (ReliableMsg (Heartbeat outbound)) a
   createSometimesFailingNetwork :: MonadSTM m => m (Party -> m (TestNetworkClient m))
   createSometimesFailingNetwork = do
     peers <- newTVarIO []
     pure $ \party -> do
-      atomically $ modifyTVar' peers (party :)
-      pure $
-        TestNetworkClient
-          { sendAll = mapM_ $ \i -> do
-              x <- readTVarIO peers
-              trace ("should send to " <> show x) pure ()
-          , getAllReceived = pure []
-          }
+      receivedMessages <- newTVarIO []
+      let peer =
+            TestNetworkClient
+              { party
+              , sendAll = mapM_ $ \i -> do
+                  ps <- readTVarIO peers
+                  forM_ ps (\TestNetworkClient{party = otherParty, onMessage} -> unless (party == otherParty) $ onMessage i)
+              , getAllReceived = do
+                  messages <- readTVarIO receivedMessages
+                  pure (reverse messages)
+              , onMessage = \i -> atomically $ modifyTVar' receivedMessages (i :)
+              }
+      atomically $ modifyTVar' peers (peer :)
+      pure peer
 
   -- failingNetwork peer (readQueue, writeQueue) callback action = do
   --   seedV <- newTVarIO $ mkStdGen seed
@@ -308,7 +317,7 @@ prop_stressTest aliceMessages bobMessages seed =
       broadcast (Data partyName m)
       threadDelay 0.1
 
--- reliabilityStack persistence underlyingNetwork tracer nodeId party peers =
---   withHeartbeat nodeId $
---     withFlipHeartbeats $
---       withReliability tracer persistence party peers underlyingNetwork
+  reliabilityStack persistence underlyingNetwork tracer nodeId party peers =
+    withHeartbeat nodeId $
+      withFlipHeartbeats $
+        withReliability tracer persistence party peers underlyingNetwork
