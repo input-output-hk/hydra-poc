@@ -214,7 +214,7 @@ mockMessagePersistence numberOfParties = do
       , appendMessage = \msg -> atomically $ modifyTVar' messages (|> msg)
       }
 
-prop_stressTest :: Int -> Int -> Int -> Int -> Property
+prop_stressTest :: Natural -> Natural -> Natural -> Int -> Property
 prop_stressTest nAlice nBob nCarol seed =
   within 1000000 $
     conjoin
@@ -228,9 +228,13 @@ prop_stressTest nAlice nBob nCarol seed =
       ]
       & cover 1 (duplicates aliceReceived > 0) "resends seen by alice"
  where
-  aliceMessages = [1 .. nAlice]
-  bobMessages = [1 .. nBob]
-  carolMessages = [1 .. nCarol]
+  aliceMessages = ("a" <>) . show <$> [1 .. nAlice]
+  bobMessages = ("b" <>) . show <$> [1 .. nBob]
+  carolMessages = ("c" <>) . show <$> [1 .. nCarol]
+
+  onlyData = rights
+
+  unAuthenticated = map (\Authenticated{payload} -> payload)
 
   duplicates msgs = length msgs - length (nub msgs)
 
@@ -259,11 +263,7 @@ prop_stressTest nAlice nBob nCarol seed =
 
     (,,) <$> (onlyData <$> getAliceMessages) <*> (onlyData <$> getBobMessages) <*> (onlyData <$> getCarolMessages)
 
-  onlyData = rights
-
-  unAuthenticated = map (\Authenticated{payload} -> payload)
-
-  createSometimesFailingNetwork :: MonadSTM m => m (Party -> m (NewNetwork m (Authenticated msg) msg))
+  createSometimesFailingNetwork :: (MonadSTM m, Show msg) => m (Party -> m (NewNetwork m (Authenticated msg) msg))
   createSometimesFailingNetwork = do
     stdGenV <- newTVarIO $ mkStdGen seed
     peerMapV <- newTVarIO mempty
@@ -280,7 +280,8 @@ prop_stressTest nAlice nBob nCarol seed =
                 -- drop 2% of messages
                 r <- randomNumber stdGenV
                 if (p == party || r < 0.02)
-                  then pure () -- drop
+                  then -- FIXME: Seems like we are only dropping 'Data', where are the pings?
+                    trace ("dropping: " <> show msg) $ pure ()
                   else send (Authenticated msg party) -- calls receiveMessage on the other end
           , onMessageReceived
           }
