@@ -279,8 +279,9 @@ prop_stressTest nAlice nBob nCarol seed =
               forM_ (Map.toList peers) $ \(p, send) -> do
                 -- drop 2% of messages
                 r <- randomNumber stdGenV
-                unless (p == party && r < 0.02) $
-                  send (Authenticated msg party) -- calls receiveMessage on the other end
+                if (p == party || r < 0.02)
+                  then pure () -- drop
+                  else send (Authenticated msg party) -- calls receiveMessage on the other end
           , onMessageReceived
           }
 
