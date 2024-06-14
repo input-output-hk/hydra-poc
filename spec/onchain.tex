@@ -315,58 +315,7 @@ $\redeemerHead = \mathsf{collect}$ and checks:
 		$\stOpen$ head output.}\label{fig:collectComTx}
 \end{figure}
 
-\subsection{Increment Transaction}\label{sec:increment-tx}
-
-\noindent The \mtxIncrement{} transaction (Figure~\ref{fig:incrementTx}) allows
-a party to add a UTxO to an already open head and consists of:
-
-\begin{itemize}
-	\item one input spending from $\nuHead$ holding the $\st$ with $\datumHead$,
-	\item one or more inputs with reference $\txOutRef_{\mathsf{committed}_{j}}$
-	      spending output $o_{\mathsf{committed}_{j}}$ with
-	      $\val_{\mathsf{committed}_{j}}$,
-	\item one output paying to $\nuHead$ with value $\valHead'$ and
-	      datum $\datumHead'$.
-\end{itemize}
-
-\noindent The state-machine validator $\nuHead$ is spent with
-$\redeemerHead = (\mathsf{increment}, \xi)$, where $\xi$ is a multi-signature of
-the increment snapshot which authorizes addition of some UTxO $U_\alpha$, and checks:
-\begin{menumerate}
-	\item State is advanced from $\datumHead \sim \stOpen$ to
-	$\datumHead' \sim \stOpen$, parameters $\cid,\hydraKeysAgg,\nop,\cPer$
-	stay unchanged and the new state is governed again by $\nuHead$
-	\todo{explain $\stOpen$ tuple}
-	\todo{need to check all fields!}
-	\[
-		(\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,\eta_{\mathsf{pre}},s,\eta) \xrightarrow[\xi]{\mathsf{increment}} (\stOpen,\cid,\hydraKeysAgg,\nop,\cPer,\eta,s',\eta')
-	\]
-	\item Increment snapshot number $s'$ is higher than the currently stored snapshot number $s$
-	\[
-		s' > s
-	\]
-	\item $\xi$ is a valid multi-signature of the currency id $\cid$, the current snapshot state $\eta$, the new snapshot number $s'$ and state $\eta'$
-	\[
-		\msVfy(\hydraKeysAgg,(\cid || \eta || s' || \eta' || \eta_{\alpha}),\xi) = \true
-	\]
-	where $\eta_{\alpha}$ is the digest of all added UTxO
-	\[
-		\eta_{\alpha} = U^{\#}_{\alpha}  = \hash(\bigoplus_{j=1}^{m} \bytes(o_{\mathsf{committed}_{j}}))
-	\]
-	\item Transaction is signed by a participant
-	\[
-		\exists \{\cid \mapsto \keyHash_{i} \mapsto 1\} \in \valHead' \Rightarrow \keyHash_{i} \in \txKeys
-	\]
-\end{menumerate}
-
-\begin{figure}
-	\centering
-	\includegraphics[width=0.8\textwidth]{figures/incrementTx.pdf}
-	\caption{\mtxIncrement{} transaction spending an open head output and a single
-		committed output, and producing a new head output.}\label{fig:incrementTx}
-\end{figure}
-
-\subsection{Decrement Transaction}\label{sec:increment-tx}
+\subsection{Decrement Transaction}\label{sec:decrement-tx}
 
 \noindent The \mtxDecrement{} transaction (Figure~\ref{fig:DecrementTx}) allows
 a party to remove a UTxO from an already open head and consists of:
@@ -464,12 +413,7 @@ the to be closed snapshot and $\mathsf{CloseType}$ is a hint against which state
 	  \[
 		\msVfy(\hydraKeysAgg,(\cid || \eta_{\mathsf{cur}}|| s' || \eta' || \bot || \bot),\xi) = \true
 	  \]
-	  \item Preemptive close: Instead of incrementing/decrementing, the head is closed with a snapshot that references the current state $\eta_{\mathsf{cur}}$, but has pending UTxO to commit.
-	  \[
-		\msVfy(\hydraKeysAgg,(\cid || \eta_{\mathsf{cur}} || s' || \eta' || \eta_{\alpha} || \eta_{\Delta}),\xi) = \true
-	  \]
-	  where $\eta_{\alpha}$ is provided by the redeemer. \todo{explain why this is enough}
-	  \item Pending close: After incrementing/decrementing, the head is closed with a snapshot that is still referencing the previous state $\eta_{\mathsf{pre}}$ and pending UTxO to decommit.
+	  \item Pending close: After decrementing, the head is closed with a snapshot that is still referencing the previous state $\eta_{\mathsf{pre}}$ and pending UTxO to decommit.
 	  \[
 		\msVfy(\hydraKeysAgg,(\cid || \eta_{\mathsf{pre}} || s' || \eta' || \eta_{\Delta} || \eta_{\omega}),\xi) = \true
 	  \]
