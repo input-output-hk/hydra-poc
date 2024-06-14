@@ -355,7 +355,7 @@ the number of outputs to reimburse. The validator checks:
 	\[
 		\exists \{\cid \mapsto \keyHash_{i} \mapsto 1\} \in \valHead' \Rightarrow \keyHash_{i} \in \txKeys
 	\]
-	\item The value in the head output is decreased accordingly \todo{really needed?}
+	\item The value in the head output is decreased accordingly
 	\[
 		\valHead' \cup (\bigcup_{j=1}^{m} \val_{o_{j}}) = \valHead
 	\]
@@ -522,19 +522,25 @@ hence there is no state machine output.
 \end{figure}
 
 \noindent The state-machine validator $\nuHead$ is spent with
-$\redeemerHead = (\mathsf{fanout}, m)$, where $m$ is the number of outputs to
-distribute, and checks:
+$\redeemerHead = (\mathsf{fanout}, m, n)$, where $m$ is the number of outputs to
+distribute, $n$ is number of decommit outputs, and checks:
 \begin{menumerate}
 	\item State is advanced from $\datumHead \sim \stClosed$ to terminal state
 	$\stFinal$: % XXX: What does this actually mean?
 	\[
-		(\stClosed,\cid,\hydraKeysAgg,\nop,\cPer,\eta_0,s,\eta,\contesters,\Tfinal) \xrightarrow[m]{\stFanout} \stFinal
+		(\stClosed,\cid,\hydraKeysAgg,\nop,\cPer,\eta_0,s,\eta,\contesters,\Tfinal) \xrightarrow[m,n]{\stFanout} \stFinal
 	\]
 	\item The first $m$ outputs are distributing funds according to
 	$\eta$. That is, the outputs exactly correspond to the UTxO
 	canonically combined $U^{\#}$ (see Section~\ref{sec:collect-tx}):
 	\[
 		\hash(\bigoplus_{j=1}^{m} \bytes(o_{j})) = U^{\#} = \eta
+	\]
+	\item The following $n$ outputs are distributing funds according to
+	$\eta$. That is, the outputs exactly correspond to the UTxO
+	canonically combined $U^{\#}$ (see Section~\ref{sec:collect-tx}):
+	\[
+		\hash(\bigoplus_{j=1}^{n} \bytes(o_{j})) = U^{\#} = \eta
 	\]
 	\item Transaction is posted after contestation deadline $\txValidityMin > \Tfinal$.
 	\item All tokens are burnt

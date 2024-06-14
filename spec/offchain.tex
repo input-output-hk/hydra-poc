@@ -18,12 +18,12 @@ reactive system that processes three kinds of inputs:
 		      \item $\hpRT$: to request a transaction to be included in the next snapshot
 		      \item $\hpRS$: to request a snapshot to be created \& signed by every head member
 		      \item $\hpAS$: to acknowledge a snapshot by replying with their signatures
-					\item $\hpRD$: to request new decommit
+					\item $\hpRD$: to acknowledge a request for UTxO removal
 	      \end{itemize}
 	\item Commands issued by the participants themselves or on behalf of end-users and clients
 	      \begin{itemize}
 		      \item $\hpInit$: to start initialization of a head
-		      \item $\hpDecommit$: to request an incremental decommit
+		      \item $\hpDecommit$: to request removal of a UTxO from the Head
 		      \item $\hpNew$: to submit a new transaction to an open head
 		      \item $\hpClose$: to request closure of an open head
 	      \end{itemize}
