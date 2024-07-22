@@ -30,6 +30,7 @@ import Cardano.Api hiding (
   scriptLanguageSupportedInEra,
   toLedgerUTxO,
  )
+import Cardano.Api.Latest.Era (Era)
 import Cardano.Api.Shelley hiding (
   UTxO,
   scriptLanguageSupportedInEra,
@@ -52,8 +53,6 @@ import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Typeable (Typeable)
 import GHC.Stack (HasCallStack)
 import Test.QuickCheck (Arbitrary (..), Gen)
-
-type Era = BabbageEra
 
 -- | Currently supported ledger era.
 type LedgerEra = ShelleyLedgerEra Era

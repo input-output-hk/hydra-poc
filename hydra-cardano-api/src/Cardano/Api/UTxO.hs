@@ -10,6 +10,7 @@ module Cardano.Api.UTxO where
 
 import Cardano.Api hiding (UTxO, toLedgerUTxO)
 import Cardano.Api qualified
+import Cardano.Api.Latest.Era (Era)
 import Cardano.Api.Shelley (ReferenceScript (..))
 import Cardano.Ledger.Babbage ()
 import Data.Bifunctor (second)
@@ -21,8 +22,6 @@ import Data.Set (Set)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Prelude
-
-type Era = BabbageEra
 
 type UTxO = UTxO' (TxOut CtxUTxO Era)
 

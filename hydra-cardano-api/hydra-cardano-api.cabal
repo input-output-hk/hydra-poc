@@ -40,6 +40,7 @@ library
   hs-source-dirs:  src
   ghc-options:     -haddock
   exposed-modules:
+    Cardano.Api.Latest.Era
     Cardano.Api.UTxO
     Hydra.Cardano.Api
     Hydra.Cardano.Api.Address
