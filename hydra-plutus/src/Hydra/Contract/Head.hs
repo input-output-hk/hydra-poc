@@ -62,12 +62,13 @@ type RedeemerType = Input
 
 {-# INLINEABLE headValidator #-}
 headValidator ::
-  State ->
-  Input ->
+  BuiltinData ->
+  BuiltinData ->
   ScriptContext ->
   Bool
 headValidator oldState input ctx =
   case (oldState, input) of
+  {--
     (Initial{contestationPeriod, parties, headId}, CollectCom) ->
       checkCollectCom ctx (contestationPeriod, parties, headId)
     (Initial{parties, headId}, Abort) ->
@@ -80,6 +81,7 @@ headValidator oldState input ctx =
       checkContest ctx closedDatum redeemer
     (Closed closedDatum, Fanout{numberOfFanoutOutputs, numberOfDecommitOutputs}) ->
       checkFanout ctx closedDatum numberOfFanoutOutputs numberOfDecommitOutputs
+      --}
     _ ->
       traceError $(errorCode InvalidHeadStateTransition)
 
@@ -689,7 +691,7 @@ compiledValidator :: CompiledCode ValidatorType
 compiledValidator =
   $$(PlutusTx.compile [||wrap headValidator||])
  where
-  wrap = wrapValidator @DatumType @RedeemerType
+  wrap = wrapValidator @BuiltinData @BuiltinData
 
 validatorScript :: SerialisedScript
 validatorScript = serialiseCompiledCode compiledValidator
