@@ -12,8 +12,8 @@ repository cardano-haskell-packages
 
 -- See CONTRIBUTING.md for information about when and how to update these.
 index-state:
-  , hackage.haskell.org 2024-07-19T19:07:04Z
-  , cardano-haskell-packages 2024-07-19T19:04:02Z
+  , hackage.haskell.org 2024-07-30T19:07:04Z
+  , cardano-haskell-packages 2024-07-30T19:04:02Z
 
 packages:
   hydra-prelude
@@ -29,6 +29,11 @@ packages:
   hydraw
   hydra-chain-observer
   hydra-explorer
+
+allow-newer: plutus-core
+allow-newer: plutus-ledger-api
+allow-newer: plutus-tx
+allow-newer: prettyprinter-configurable
 
 -- Compile more things in parallel
 package *
