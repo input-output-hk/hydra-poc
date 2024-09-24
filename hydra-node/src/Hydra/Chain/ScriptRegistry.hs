@@ -4,6 +4,7 @@ module Hydra.Chain.ScriptRegistry where
 
 import Hydra.Prelude
 
+import Cardano.Api.Experimental.Tx (UnsignedTx (..))
 import Cardano.Api.UTxO qualified as UTxO
 import Hydra.Cardano.Api (
   Key (..),
@@ -17,6 +18,7 @@ import Hydra.Cardano.Api (
   TxIx (..),
   WitCtx (..),
   examplePlutusScriptAlwaysFails,
+  fromLedgerTx,
   getTxBody,
   getTxId,
   makeShelleyKeyWitness,
