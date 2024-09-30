@@ -13,10 +13,11 @@ import PlutusTx.Prelude
 
 import Hydra.Prelude qualified as Haskell
 
-import Hydra.Cardano.Api (PlutusScriptVersion (PlutusScriptV2))
-import Hydra.Plutus.Extras (ValidatorType, mkUntypedValidator, scriptValidatorHash)
+import Hydra.Cardano.Api (PlutusScriptVersion (PlutusScriptV3))
+import Hydra.Plutus.Extras (ValidatorType, scriptValidatorHash)
+import Plutus.Script.Utils.Typed (mkUntypedValidator)
 import PlutusLedgerApi.Common (SerialisedScript, serialiseCompiledCode)
-import PlutusLedgerApi.V2 (
+import PlutusLedgerApi.V3 (
   Datum (Datum),
   Redeemer (Redeemer),
   ScriptContext,
@@ -60,7 +61,7 @@ validatorScript :: SerialisedScript
 validatorScript = serialiseCompiledCode compiledValidator
 
 validatorHash :: ScriptHash
-validatorHash = scriptValidatorHash PlutusScriptV2 validatorScript
+validatorHash = scriptValidatorHash PlutusScriptV3 validatorScript
 
 datum :: DatumType -> Datum
 datum a = Datum (toBuiltinData a)

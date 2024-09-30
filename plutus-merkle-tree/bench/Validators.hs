@@ -12,7 +12,7 @@ import PlutusTx.Prelude
 import Hydra.Plutus.Extras (mkUntypedValidator)
 import Plutus.MerkleTree qualified as MT
 import PlutusLedgerApi.Common (SerialisedScript, serialiseCompiledCode)
-import PlutusLedgerApi.V2 (ScriptContext)
+import PlutusLedgerApi.V3 (ScriptContext)
 import PlutusTx qualified as Plutus
 
 -- | A validator for measuring cost of MT membership validation.

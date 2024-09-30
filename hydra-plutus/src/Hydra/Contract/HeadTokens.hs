@@ -14,7 +14,7 @@ module Hydra.Contract.HeadTokens where
 import PlutusTx.Prelude
 
 import Hydra.Cardano.Api (
-  PlutusScriptV2,
+  PlutusScriptV3,
   PolicyId,
   TxIn,
   fromPlutusScript,
@@ -33,7 +33,7 @@ import Hydra.Contract.Util (hasST)
 import Hydra.Plutus.Extras (MintingPolicyType, mkUntypedMintingPolicy)
 import Hydra.ScriptContext (ScriptContext (..), TxInfo (txInfoInputs, txInfoMint), ownCurrencySymbol, scriptOutputsAt)
 import PlutusCore.Core (plcVersion100)
-import PlutusLedgerApi.V2 (
+import PlutusLedgerApi.V3 (
   Datum (getDatum),
   FromData (fromBuiltinData),
   OutputDatum (..),
@@ -200,4 +200,4 @@ headPolicyId =
 -- | Get the applied head minting policy script given a seed 'TxIn'.
 mkHeadTokenScript :: TxIn -> Api.PlutusScript
 mkHeadTokenScript =
-  fromPlutusScript @PlutusScriptV2 . mintingPolicyScript . toPlutusTxOutRef
+  fromPlutusScript @PlutusScriptV3 . mintingPolicyScript . toPlutusTxOutRef

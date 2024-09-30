@@ -7,7 +7,7 @@ import Cardano.Api.UTxO qualified as UTxO
 import Data.Map.Strict qualified as Map
 import Hydra.Contract.Util (hydraHeadV1)
 import Hydra.Tx.OnChainId (OnChainId (..))
-import PlutusLedgerApi.V2 (FromData, fromBuiltin, getPubKeyHash)
+import PlutusLedgerApi.V3 (FromData, fromBuiltin, getPubKeyHash)
 import Test.Cardano.Ledger.Babbage.Arbitrary ()
 
 hydraHeadV1AssetName :: AssetName

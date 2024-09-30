@@ -18,7 +18,7 @@ import Hydra.Tx.Deposit (depositTx)
 import Hydra.Tx.HeadId (mkHeadId)
 import Hydra.Tx.Recover (recoverTx)
 import Hydra.Tx.Utils (extractInlineDatumFromTxOut)
-import PlutusLedgerApi.V2 (CurrencySymbol, POSIXTime)
+import PlutusLedgerApi.V3 (CurrencySymbol, POSIXTime)
 import Test.Hydra.Tx.Fixture (testNetworkId, testPolicyId)
 import Test.Hydra.Tx.Gen (genUTxOAdaOnlyOfSize, genValue)
 import Test.Hydra.Tx.Mutation (

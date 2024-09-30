@@ -67,7 +67,7 @@ abortTx committedUTxO scriptRegistry vk (headInput, initialHeadOutput) headToken
   headScriptRef =
     fst (headReference scriptRegistry)
   headScript =
-    fromPlutusScript @PlutusScriptV2 Head.validatorScript
+    fromPlutusScript @PlutusScriptV3 Head.validatorScript
   headRedeemer =
     toScriptData Head.Abort
 
@@ -91,7 +91,7 @@ abortTx committedUTxO scriptRegistry vk (headInput, initialHeadOutput) headToken
   initialScriptRef =
     fst (initialReference scriptRegistry)
   initialScript =
-    fromPlutusScript @PlutusScriptV2 Initial.validatorScript
+    fromPlutusScript @PlutusScriptV3 Initial.validatorScript
   initialRedeemer =
     toScriptData $ Initial.redeemer Initial.ViaAbort
 
@@ -103,7 +103,7 @@ abortTx committedUTxO scriptRegistry vk (headInput, initialHeadOutput) headToken
   commitScriptRef =
     fst (commitReference scriptRegistry)
   commitScript =
-    fromPlutusScript @PlutusScriptV2 Commit.validatorScript
+    fromPlutusScript @PlutusScriptV3 Commit.validatorScript
   commitRedeemer =
     toScriptData (Commit.redeemer Commit.ViaAbort)
 

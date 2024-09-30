@@ -11,7 +11,7 @@ import Hydra.Cardano.Api (
   SerialiseAsRawBytes (..),
   UsingRawBytesHex (..),
  )
-import PlutusLedgerApi.V2 (CurrencySymbol (..), toBuiltin)
+import PlutusLedgerApi.V3 (CurrencySymbol (..), toBuiltin)
 import Test.QuickCheck (vectorOf)
 import Test.QuickCheck.Instances.Semigroup ()
 import Test.QuickCheck.Instances.Time ()

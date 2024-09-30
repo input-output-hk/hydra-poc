@@ -11,7 +11,7 @@ module Hydra.Contract.Deposit where
 
 import PlutusTx.Prelude
 
-import Hydra.Cardano.Api (PlutusScriptVersion (PlutusScriptV2))
+import Hydra.Cardano.Api (PlutusScriptVersion (PlutusScriptV3))
 import Hydra.Contract.Commit (Commit)
 import Hydra.Contract.DepositError (
   DepositError (
@@ -22,8 +22,9 @@ import Hydra.Contract.DepositError (
  )
 import Hydra.Contract.Error (errorCode)
 import Hydra.Contract.Head (hashPreSerializedCommits, hashTxOuts)
-import Hydra.Plutus.Extras (ValidatorType, mkUntypedValidator, scriptValidatorHash)
-import PlutusLedgerApi.V2 (
+import Hydra.Plutus.Extras (ValidatorType, scriptValidatorHash)
+import Plutus.Script.Utils.Typed (mkUntypedValidator)
+import PlutusLedgerApi.V3 (
   CurrencySymbol,
   Datum (Datum),
   Extended (Finite),
@@ -97,7 +98,7 @@ validatorScript :: SerialisedScript
 validatorScript = serialiseCompiledCode compiledValidator
 
 validatorHash :: ScriptHash
-validatorHash = scriptValidatorHash PlutusScriptV2 validatorScript
+validatorHash = scriptValidatorHash PlutusScriptV3 validatorScript
 
 datum :: DepositDatum -> Datum
 datum a = Datum (toBuiltinData a)

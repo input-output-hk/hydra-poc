@@ -13,7 +13,7 @@ import Hydra.Ledger.Cardano.Builder (
   setValidityLowerBound,
   unsafeBuildTransaction,
  )
-import PlutusLedgerApi.V2 (CurrencySymbol, POSIXTime)
+import PlutusLedgerApi.V3 (CurrencySymbol, POSIXTime)
 
 -- | Builds a recover transaction to recover locked funds from the v_deposit script.
 recoverTx ::
@@ -48,4 +48,4 @@ recoverTx networkId headId depositTxIn depositted deadline lowerBoundSlot =
 
   depositOutputs = toTxContext . snd <$> mapMaybe (Commit.deserializeCommit (networkIdToNetwork networkId)) depositted
 
-  depositScript = fromPlutusScript @PlutusScriptV2 Deposit.validatorScript
+  depositScript = fromPlutusScript @PlutusScriptV3 Deposit.validatorScript

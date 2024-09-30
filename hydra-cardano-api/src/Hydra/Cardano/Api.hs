@@ -11,7 +11,7 @@
 -- also get rid of era witnesses.
 --
 -- NOTE: This module also uses the **latest plutus version** available
--- (currently 'PlutusScriptV2'). So make sure that you give it a plutus script
+-- (currently 'PlutusScriptV3'). So make sure that you give it a plutus script
 -- of the right version (e.g. when compiling and serializing plutus-tx).
 module Hydra.Cardano.Api (
   -- * Common type-alias
@@ -233,7 +233,7 @@ pattern ShelleyKeyWitness{shelleyKeyWitness} <-
 
 -- ** PlutusScript
 
-type PlutusScript = Cardano.Api.PlutusScript PlutusScriptV2
+type PlutusScript = Cardano.Api.PlutusScript PlutusScriptV3
 {-# COMPLETE PlutusScriptSerialised #-}
 
 pattern PlutusScriptSerialised :: ShortByteString -> PlutusScript
@@ -245,7 +245,7 @@ pattern PlutusScriptSerialised{plutusScriptSerialised} <-
 
 -- ** Script
 
-type Script = Cardano.Api.Script PlutusScriptV2
+type Script = Cardano.Api.Script PlutusScriptV3
 {-# COMPLETE PlutusScript #-}
 
 pattern PlutusScript :: PlutusScript -> Script
@@ -253,7 +253,7 @@ pattern PlutusScript{plutusScript} <-
   Cardano.Api.Shelley.PlutusScript _ plutusScript
   where
     PlutusScript =
-      Cardano.Api.Shelley.PlutusScript PlutusScriptV2
+      Cardano.Api.Shelley.PlutusScript PlutusScriptV3
 
 -- ** ScriptInEra
 
@@ -261,7 +261,7 @@ type ScriptInEra = Cardano.Api.ScriptInEra Era
 
 -- ** ScriptLanguage
 
-type ScriptLanguage = Cardano.Api.ScriptLanguage PlutusScriptV2
+type ScriptLanguage = Cardano.Api.ScriptLanguage PlutusScriptV3
 {-# COMPLETE PlutusScriptLanguage #-}
 
 pattern PlutusScriptLanguage :: ScriptLanguage
@@ -269,7 +269,7 @@ pattern PlutusScriptLanguage <-
   Cardano.Api.Shelley.PlutusScriptLanguage _
   where
     PlutusScriptLanguage =
-      Cardano.Api.Shelley.PlutusScriptLanguage PlutusScriptV2
+      Cardano.Api.Shelley.PlutusScriptLanguage PlutusScriptV3
 
 -- ** ScriptWitness
 
@@ -290,7 +290,7 @@ pattern PlutusScriptWitness
   } <-
   Cardano.Api.PlutusScriptWitness
     _
-    PlutusScriptV2
+    PlutusScriptV3
     (PScript plutusScriptWitnessScript)
     plutusScriptWitnessDatum
     plutusScriptWitnessRedeemer
@@ -299,7 +299,7 @@ pattern PlutusScriptWitness
     PlutusScriptWitness =
       Cardano.Api.PlutusScriptWitness
         scriptLanguageInEra
-        PlutusScriptV2
+        PlutusScriptV3
         . PScript
 
 -- ** Tx

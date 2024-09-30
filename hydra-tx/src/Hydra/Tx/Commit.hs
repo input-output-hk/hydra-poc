@@ -37,8 +37,8 @@ import Hydra.Tx.HeadId (HeadId, headIdToCurrencySymbol)
 import Hydra.Tx.Party (Party, partyToChain)
 import Hydra.Tx.ScriptRegistry (ScriptRegistry, initialReference)
 import Hydra.Tx.Utils (mkHydraHeadV1TxName)
-import PlutusLedgerApi.V2 (CurrencySymbol)
-import PlutusLedgerApi.V2 qualified as Plutus
+import PlutusLedgerApi.V3 (CurrencySymbol)
+import PlutusLedgerApi.V3 qualified as Plutus
 
 mkCommitDatum :: Party -> UTxO -> CurrencySymbol -> Plutus.Datum
 mkCommitDatum party utxo headId =
@@ -135,7 +135,7 @@ commitTx networkId scriptRegistry headId party commitBlueprintTx (initialInput, 
     fromPlutusScript Commit.validatorScript
 
   commitAddress =
-    mkScriptAddress @PlutusScriptV2 networkId commitScript
+    mkScriptAddress @PlutusScriptV3 networkId commitScript
 
   utxoToCommit =
     UTxO.fromPairs $ mapMaybe (\txin -> (txin,) <$> UTxO.resolve txin lookupUTxO) committedTxIns

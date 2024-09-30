@@ -7,7 +7,7 @@
 -- | A custom ScriptContext and TxInfo which only "decodes" the fields we need.
 module Hydra.ScriptContext where
 
-import PlutusLedgerApi.V2.Contexts hiding (
+import PlutusLedgerApi.V3.Contexts hiding (
   ScriptContext,
   TxInfo (..),
   scriptContextPurpose,
@@ -15,8 +15,10 @@ import PlutusLedgerApi.V2.Contexts hiding (
  )
 import PlutusTx.Prelude
 
-import PlutusLedgerApi.V2 (
+import PlutusLedgerApi.V3 (
   Address (..),
+  TxOut(..),
+  TxOutRef(..),
   Credential (..),
   CurrencySymbol,
   Datum,
