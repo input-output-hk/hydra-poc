@@ -158,6 +158,7 @@ test-suite tests
     Test.OfflineChainSpec
 
   build-depends:
+    , HUnit
     , aeson
     , async
     , base                >=4.7 && <5
@@ -182,6 +183,7 @@ test-suite tests
     , io-classes
     , lens
     , lens-aeson
+    , managed
     , process
     , QuickCheck
     , stm

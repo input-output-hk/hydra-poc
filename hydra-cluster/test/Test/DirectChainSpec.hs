@@ -3,7 +3,8 @@
 module Test.DirectChainSpec where
 
 import Hydra.Prelude
-import Test.Hydra.Prelude
+import Test.Hydra.Prelude hiding (shouldBe)
+import Test.HUnit.Lang (FailureReason (..))
 
 import Cardano.Ledger.Api (bodyTxL, reqSignerHashesTxBodyL)
 import CardanoClient (
@@ -91,34 +92,40 @@ import System.FilePath ((</>))
 import System.Process (proc, readCreateProcess)
 import Test.Hydra.Tx.Gen (genKeyPair)
 import Test.QuickCheck (choose, generate)
+import Control.Monad.Managed
+
+shouldBe :: (HasCallStack, MonadThrow m, Eq a, Show a) => a -> a -> m ()
+shouldBe actual expected =
+  unless (actual == expected) $
+    throwIO $
+      HUnitFailure location reason
+ where
+  reason = ExpectedButGot Nothing (show expected) (show actual)
 
 spec :: Spec
 spec = around (showLogsOnFailure "DirectChainSpec") $ do
-  it "can init and abort a head given nothing has been committed" $ \tracer -> do
-    withTempDir "hydra-cluster" $ \tmp -> do
-      withCardanoNodeDevnet (contramap FromNode tracer) tmp $ \node@RunningNode{nodeSocket} -> do
-        (aliceCardanoVk, _) <- keysFor Alice
-        seedFromFaucet_ node aliceCardanoVk 100_000_000 (contramap FromFaucet tracer)
-        hydraScriptsTxId <- publishHydraScriptsAs node Faucet
-        -- Alice setup
-        aliceChainConfig <- chainConfigFor Alice tmp nodeSocket hydraScriptsTxId [Bob, Carol] cperiod
-        withDirectChainTest (contramap (FromDirectChain "alice") tracer) aliceChainConfig alice $ \aliceChain@DirectChainTest{postTx} -> do
-          -- Bob setup
-          bobChainConfig <- chainConfigFor Bob tmp nodeSocket hydraScriptsTxId [Alice, Carol] cperiod
-          withDirectChainTest nullTracer bobChainConfig bob $ \bobChain@DirectChainTest{} -> do
-            -- Scenario
-            participants <- loadParticipants [Alice, Bob, Carol]
-            let headParameters = HeadParameters cperiod [alice, bob, carol]
-            postTx $ InitTx{participants, headParameters}
-            (aliceHeadId, aliceHeadSeed) <- aliceChain `observesInTimeSatisfying` hasInitTxWith headParameters participants
-            (bobHeadId, bobHeadSeed) <- bobChain `observesInTimeSatisfying` hasInitTxWith headParameters participants
+  it "can init and abort a head given nothing has been committed" $ \tracer -> runManaged $ do
+    tmp <- managed $ withTempDir "hydra-cluster"
+    node@RunningNode{nodeSocket} <- managed $ withCardanoNodeDevnet (contramap FromNode tracer) tmp
+    hydraScriptsTxId <- liftIO $ do
+      (aliceCardanoVk, _) <- keysFor Alice
+      seedFromFaucet_ node aliceCardanoVk 100_000_000 (contramap FromFaucet tracer)
+      publishHydraScriptsAs node Faucet
 
-            aliceHeadSeed `shouldBe` bobHeadSeed
+    -- Alice setup
+    aliceChainConfig <- liftIO $ chainConfigFor Alice tmp nodeSocket hydraScriptsTxId [Bob, Carol] cperiod
+    aliceChain@DirectChainTest{postTx} <- managed $ withDirectChainTest (contramap (FromDirectChain "alice") tracer) aliceChainConfig alice
 
-            postTx $ AbortTx{utxo = mempty, headSeed = aliceHeadSeed}
+    -- Bob setup
+    bobChainConfig <- liftIO $ chainConfigFor Bob tmp nodeSocket hydraScriptsTxId [Alice, Carol] cperiod
+    bobChain@DirectChainTest{} <- managed $ withDirectChainTest nullTracer bobChainConfig bob
 
-            aliceChain `observesInTime` OnAbortTx{headId = aliceHeadId}
-            bobChain `observesInTime` OnAbortTx{headId = bobHeadId}
+    -- Scenario
+    participants <- liftIO $ loadParticipants [Alice, Bob, Carol]
+    let headParameters = HeadParameters cperiod [alice, bob, carol]
+    liftIO $ postTx $ InitTx{participants, headParameters}
+    _ <- liftIO $ aliceChain `observesInTimeSatisfying` (liftIO . hasInitTxWith headParameters participants)
+    pure ()
 
   it "can init and abort a 2-parties head after one party has committed" $ \tracer -> do
     withTempDir "hydra-cluster" $ \tmp -> do
@@ -526,33 +533,34 @@ data DirectChainTest tx m = DirectChainTest
 -- | Wrapper around 'withDirectChain' that threads a 'ChainStateType tx' through
 -- 'postTx' and 'waitCallback' calls.
 withDirectChainTest ::
+  MonadIO m =>
   Tracer IO DirectChainLog ->
   ChainConfig ->
   Party ->
-  (DirectChainTest Tx IO -> IO a) ->
-  IO a
+  (DirectChainTest Tx m -> m a) ->
+  m a
 withDirectChainTest tracer config party action = do
   directConfig <- case config of
     Direct cfg -> pure cfg
     otherConfig -> failure $ "unexpected chainConfig: " <> show otherConfig
-  ctx <- loadChainContext directConfig party
-  eventMVar <- newEmptyTMVarIO
+  ctx <- liftIO $ loadChainContext directConfig party
+  eventMVar <- liftIO $ newEmptyTMVarIO
 
-  let callback event = atomically $ putTMVar eventMVar event
+  let callback event = liftIO $ atomically $ putTMVar eventMVar event
 
-  wallet <- mkTinyWallet tracer directConfig
+  wallet <- liftIO $ mkTinyWallet tracer directConfig
 
-  withDirectChain tracer directConfig ctx wallet (initHistory initialChainState) callback $ \Chain{postTx, draftCommitTx} -> do
-    action
-      DirectChainTest
-        { postTx
-        , waitCallback = atomically $ takeTMVar eventMVar
-        , draftCommitTx = \headId utxo blueprintTx -> do
-            eTx <- draftCommitTx headId $ CommitBlueprintTx{lookupUTxO = utxo, blueprintTx}
-            case eTx of
-              Left e -> throwIO e
-              Right tx -> pure tx
-        }
+  Chain{postTx, draftCommitTx} <- managed $ withDirectChain tracer directConfig ctx wallet (initHistory initialChainState) callback
+  action
+    DirectChainTest
+      { postTx = liftIO . postTx
+      , waitCallback = liftIO $ atomically $ takeTMVar eventMVar
+      , draftCommitTx = \headId utxo blueprintTx -> do
+          eTx <- liftIO $ draftCommitTx headId $ CommitBlueprintTx{lookupUTxO = utxo, blueprintTx}
+          case eTx of
+            Left e -> throwIO e
+            Right tx -> pure tx
+      }
 
 hasInitTxWith :: (HasCallStack, IsTx tx) => HeadParameters -> [OnChainId] -> OnChainTx tx -> IO (HeadId, HeadSeed)
 hasInitTxWith HeadParameters{contestationPeriod = expectedContestationPeriod, parties = expectedParties} expectedParticipants = \case
@@ -563,11 +571,11 @@ hasInitTxWith HeadParameters{contestationPeriod = expectedContestationPeriod, pa
     pure (headId, headSeed)
   tx -> failure ("Unexpected observation: " <> show tx)
 
-observesInTime :: IsTx tx => DirectChainTest tx IO -> OnChainTx tx -> IO ()
+observesInTime :: MonadThrow m => MonadTimer m => MonadIO m => IsTx tx => DirectChainTest tx m -> OnChainTx tx -> m ()
 observesInTime chain expected =
   observesInTimeSatisfying chain (`shouldBe` expected)
 
-observesInTimeSatisfying :: DirectChainTest tx IO -> (OnChainTx tx -> IO a) -> IO a
+observesInTimeSatisfying :: MonadTimer m => MonadThrow m => MonadIO m => DirectChainTest tx m -> (OnChainTx tx -> m a) -> m a
 observesInTimeSatisfying DirectChainTest{waitCallback} check =
   failAfter 10 go
  where
