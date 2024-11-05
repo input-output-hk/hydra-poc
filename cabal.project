@@ -42,3 +42,11 @@ test-show-details: direct
 
 program-options
   ghc-options: -fwrite-ide-info
+
+source-repository-package
+  type: git
+  location: https://github.com/cardano-scaling/hydra-ledger
+  tag: b74e5ecc286939831e4bd07e3074684adf884c03
+  --sha256: sha256-DTuR/Ulaoh9ozlMve/7aA//e8itWf7AvAeK8GHBBB4I=
+  subdir:
+    hydra-ledger-triton

@@ -52,11 +52,13 @@ import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Typeable (Typeable)
 import GHC.Stack (HasCallStack)
 import Test.QuickCheck (Arbitrary (..), Gen)
+import Hydra.Ledger.Triton.Era (TritonEra)
+import Cardano.Ledger.Conway (ConwayEra)
 
-type Era = ConwayEra
+type Era = Cardano.Api.Shelley.ConwayEra
 
 -- | Currently supported ledger era.
-type LedgerEra = ShelleyLedgerEra Era
+type LedgerEra = TritonEra Cardano.Ledger.Conway.ConwayEra StandardCrypto
 
 type UsesStandardCrypto era = (EraCrypto (ShelleyLedgerEra era) ~ StandardCrypto)
 

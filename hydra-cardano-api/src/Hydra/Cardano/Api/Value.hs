@@ -1,6 +1,6 @@
 module Hydra.Cardano.Api.Value where
 
-import Hydra.Cardano.Api.Prelude hiding (toLedgerValue)
+import Hydra.Cardano.Api.Prelude hiding (toLedgerValue, ConwayEra)
 
 import Cardano.Api.Ledger (Coin (..), PParams)
 import Cardano.Ledger.Alonzo.Plutus.TxInfo qualified as Ledger
@@ -13,13 +13,15 @@ import Hydra.Cardano.Api.PolicyId (fromPlutusCurrencySymbol)
 import PlutusLedgerApi.V1.Value (flattenValue)
 import PlutusLedgerApi.V2 (adaSymbol, adaToken, fromBuiltin, unTokenName)
 import PlutusLedgerApi.V2 qualified as Plutus
+import Hydra.Ledger.Triton.Era (TritonEra)
+import Cardano.Ledger.Conway (ConwayEra)
 
 -- * Extras
 
 -- | Calculate minimum ada as 'Value' for a 'TxOut'.
 minUTxOValue ::
-  PParams LedgerEra ->
-  TxOut CtxTx Era ->
+  PParams (TritonEra ConwayEra StandardCrypto) ->
+  TxOut CtxTx (ConwayEra StandardCrypto)->
   Value
 minUTxOValue pparams (TxOut addr val dat ref) =
   lovelaceToValue $
@@ -31,7 +33,7 @@ minUTxOValue pparams (TxOut addr val dat ref) =
     TxOut
       addr
       ( TxOutValueShelleyBased
-          (shelleyBasedEra @Era)
+          (shelleyBasedEra @(ConwayEra StandardCrypto))
           (toLedgerValue (txOutValueToValue val <> defaultHighEnoughValue))
       )
       dat

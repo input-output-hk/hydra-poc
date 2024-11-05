@@ -59,7 +59,7 @@ findScriptMinting (getTxBody -> ShelleyTxBody _ _ scripts _ _ _) pid = do
 lookupRedeemer ::
   Plutus.FromData a =>
   PlutusPurpose AsIx LedgerEra ->
-  TxBodyScriptData Era ->
+  TxBodyScriptData LedgerEra ->
   Maybe a
 lookupRedeemer ptr scriptData = do
   (d, _exUnits) <- Map.lookup ptr redeemers

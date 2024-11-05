@@ -91,10 +91,12 @@ library
     , cardano-ledger-babbage
     , cardano-ledger-binary
     , cardano-ledger-byron
+    , cardano-ledger-conway
     , cardano-ledger-core
     , cardano-ledger-mary
     , cardano-ledger-shelley
     , containers
+    , hydra-ledger-triton
     , lens
     , plutus-ledger-api
     , QuickCheck
