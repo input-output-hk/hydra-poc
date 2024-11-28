@@ -16,6 +16,7 @@ index-state:
   , cardano-haskell-packages 2024-11-12T08:40:13Z
 
 packages:
+  cardano-ledger-formatting
   hydra-prelude
   hydra-cardano-api
   hydra-test-utils
