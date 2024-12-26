@@ -98,6 +98,14 @@ addVkInputs :: [TxIn] -> TxBodyContent BuildTx -> TxBodyContent BuildTx
 addVkInputs ins =
   addInputs ((,BuildTxWith $ KeyWitness KeyWitnessForSpending) <$> ins)
 
+addCollateralInput :: TxIn -> TxBodyContent BuildTx -> TxBodyContent BuildTx
+addCollateralInput txin tx =
+  tx{txInsCollateral = TxInsCollateral [txin]}
+
+changePParams :: PParams (ShelleyLedgerEra Era) -> TxBodyContent BuildTx -> TxBodyContent BuildTx
+changePParams pparams tx =
+  tx{txProtocolParams = BuildTxWith $ Just $ LedgerProtocolParameters pparams}
+
 -- | Append new outputs to an ongoing builder.
 addOutputs :: [TxOut CtxTx] -> TxBodyContent BuildTx -> TxBodyContent BuildTx
 addOutputs outputs tx =
@@ -114,6 +122,10 @@ addExtraRequiredSigners vks tx =
         TxExtraKeyWitnesses vks
       TxExtraKeyWitnesses vks' ->
         TxExtraKeyWitnesses (vks' <> vks)
+
+addCertificates :: TxCertificates BuildTx Era -> TxBodyContent BuildTx -> TxBodyContent BuildTx
+addCertificates certs tx =
+  tx{txCertificates = certs}
 
 -- | Mint tokens with given plutus minting script and redeemer.
 mintTokens :: ToScriptData redeemer => PlutusScript -> redeemer -> [(AssetName, Quantity)] -> TxBodyContent BuildTx -> TxBodyContent BuildTx
