@@ -59,8 +59,8 @@ data Snapshot tx = Snapshot
   }
   deriving stock (Generic)
 
-deriving stock instance IsTx tx => Eq (Snapshot tx)
-deriving stock instance IsTx tx => Show (Snapshot tx)
+deriving stock instance (Eq tx, Eq (UTxOType tx), IsTx tx) => Eq (Snapshot tx)
+deriving stock instance (Show tx, Show (UTxOType tx), IsTx tx) => Show (Snapshot tx)
 
 -- | Binary representation of snapshot signatures. That is, concatenated CBOR for
 -- 'headId', 'version', 'number', 'utxoHash' and 'utxoToDecommitHash' according
@@ -74,7 +74,7 @@ deriving stock instance IsTx tx => Show (Snapshot tx)
 -- utxoToDecommitHash = bytes
 --
 -- where hashes are the result of applying 'hashUTxO'.
-instance forall tx. IsTx tx => SignableRepresentation (Snapshot tx) where
+instance forall tx. (Monoid (UTxOType tx), IsTx tx) => SignableRepresentation (Snapshot tx) where
   getSignableRepresentation Snapshot{headId, version, number, utxo, utxoToCommit, utxoToDecommit} =
     LBS.toStrict $
       serialise (toData . toBuiltin $ serialiseToRawBytes headId)
@@ -84,7 +84,7 @@ instance forall tx. IsTx tx => SignableRepresentation (Snapshot tx) where
         <> serialise (toData . toBuiltin . hashUTxO @tx $ fromMaybe mempty utxoToCommit)
         <> serialise (toData . toBuiltin . hashUTxO @tx $ fromMaybe mempty utxoToDecommit)
 
-instance IsTx tx => ToJSON (Snapshot tx) where
+instance (ToJSON (UTxOType tx), ToJSON tx) => ToJSON (Snapshot tx) where
   toJSON Snapshot{headId, number, utxo, confirmed, utxoToCommit, utxoToDecommit, version} =
     object
       [ "headId" .= headId
@@ -96,7 +96,7 @@ instance IsTx tx => ToJSON (Snapshot tx) where
       , "utxoToDecommit" .= utxoToDecommit
       ]
 
-instance IsTx tx => FromJSON (Snapshot tx) where
+instance (Semigroup (UTxOType tx), FromJSON (UTxOType tx), FromJSON tx) => FromJSON (Snapshot tx) where
   parseJSON = withObject "Snapshot" $ \obj ->
     Snapshot
       <$> (obj .: "headId")
@@ -139,8 +139,12 @@ data ConfirmedSnapshot tx
       { snapshot :: Snapshot tx
       , signatures :: MultiSignature (Snapshot tx)
       }
-  deriving stock (Generic, Eq, Show)
-  deriving anyclass (ToJSON, FromJSON)
+  deriving stock (Generic)
+
+deriving instance (IsTx tx, Eq tx, Eq (UTxOType tx)) => Eq (ConfirmedSnapshot tx)
+deriving instance (IsTx tx, Show tx, Show (UTxOType tx)) => Show (ConfirmedSnapshot tx)
+deriving instance (IsTx tx, ToJSON tx, ToJSON (UTxOType tx)) => ToJSON (ConfirmedSnapshot tx)
+deriving instance (IsTx tx, Semigroup (UTxOType tx), FromJSON tx, FromJSON (UTxOType tx)) => FromJSON (ConfirmedSnapshot tx)
 
 -- | Safely get a 'Snapshot' from a confirmed snapshot.
 --
@@ -163,7 +167,7 @@ getSnapshot = \case
       }
   ConfirmedSnapshot{snapshot} -> snapshot
 
-instance (Arbitrary tx, Arbitrary (UTxOType tx), IsTx tx) => Arbitrary (ConfirmedSnapshot tx) where
+instance (Arbitrary tx, Arbitrary (UTxOType tx), IsTx tx, Monoid (UTxOType tx)) => Arbitrary (ConfirmedSnapshot tx) where
   arbitrary = do
     ks <- arbitrary
     utxo <- arbitrary
@@ -178,6 +182,7 @@ instance (Arbitrary tx, Arbitrary (UTxOType tx), IsTx tx) => Arbitrary (Confirme
 
 genConfirmedSnapshot ::
   IsTx tx =>
+  Monoid (UTxOType tx) =>
   HeadId ->
   -- | Exact snapshot version to generate.
   SnapshotVersion ->

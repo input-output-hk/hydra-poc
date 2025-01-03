@@ -83,12 +83,12 @@ data Message tx
   | ReqDec {transaction :: tx}
   deriving stock (Generic)
 
-deriving stock instance IsTx tx => Eq (Message tx)
-deriving stock instance IsTx tx => Show (Message tx)
-deriving anyclass instance IsTx tx => ToJSON (Message tx)
-deriving anyclass instance IsTx tx => FromJSON (Message tx)
+deriving stock instance (Eq tx, Eq (UTxOType tx), Eq (TxIdType tx), IsTx tx) => Eq (Message tx)
+deriving stock instance (Show tx, Show (UTxOType tx), Show (TxIdType tx), IsTx tx) => Show (Message tx)
+deriving anyclass instance (ToJSON tx, ToJSON (UTxOType tx), ToJSON (TxIdType tx), IsTx tx) => ToJSON (Message tx)
+deriving anyclass instance (FromJSON tx, FromJSON (UTxOType tx), FromJSON (TxIdType tx), Semigroup (UTxOType tx), IsTx tx) => FromJSON (Message tx)
 
-instance ArbitraryIsTx tx => Arbitrary (Message tx) where
+instance (Monoid (UTxOType tx), ArbitraryIsTx tx) => Arbitrary (Message tx) where
   arbitrary = genericArbitrary
 
 instance (ToCBOR tx, ToCBOR (UTxOType tx), ToCBOR (TxIdType tx)) => ToCBOR (Message tx) where
@@ -107,5 +107,5 @@ instance (FromCBOR tx, FromCBOR (UTxOType tx), FromCBOR (TxIdType tx)) => FromCB
       "ReqDec" -> ReqDec <$> fromCBOR
       msg -> fail $ show msg <> " is not a proper CBOR-encoded Message"
 
-instance IsTx tx => SignableRepresentation (Message tx) where
+instance (ToCBOR tx, ToCBOR (TxIdType tx), ToCBOR (UTxOType tx)) => SignableRepresentation (Message tx) where
   getSignableRepresentation = serialize'

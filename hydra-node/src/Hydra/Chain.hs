@@ -208,7 +208,7 @@ deriving stock instance IsChainState tx => Show (PostTxError tx)
 deriving anyclass instance IsChainState tx => ToJSON (PostTxError tx)
 deriving anyclass instance IsChainState tx => FromJSON (PostTxError tx)
 
-instance IsChainState tx => Exception (PostTxError tx)
+instance (Typeable tx, IsChainState tx) => Exception (PostTxError tx)
 
 instance (ArbitraryIsTx tx, IsChainState tx) => Arbitrary (PostTxError tx) where
   arbitrary = genericArbitrary

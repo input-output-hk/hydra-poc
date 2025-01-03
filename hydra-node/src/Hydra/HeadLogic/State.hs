@@ -23,6 +23,7 @@ import Hydra.Tx.Snapshot (
   SnapshotNumber,
   SnapshotVersion,
  )
+import Data.Aeson (FromJSONKey (..), ToJSONKey (..))
 
 -- | The main state of the Hydra protocol state machine. It holds both, the
 -- overall protocol state, but also the off-chain 'CoordinatedHeadState'.
@@ -44,13 +45,13 @@ data HeadState tx
   | Closed (ClosedState tx)
   deriving stock (Generic)
 
-instance (ArbitraryIsTx tx, Arbitrary (ChainStateType tx)) => Arbitrary (HeadState tx) where
+instance (ArbitraryIsTx tx, Arbitrary (ChainStateType tx), Ord (TxIdType tx), Monoid (UTxOType tx)) => Arbitrary (HeadState tx) where
   arbitrary = genericArbitrary
 
-deriving stock instance (IsTx tx, Eq (ChainStateType tx)) => Eq (HeadState tx)
-deriving stock instance (IsTx tx, Show (ChainStateType tx)) => Show (HeadState tx)
-deriving anyclass instance (IsTx tx, ToJSON (ChainStateType tx)) => ToJSON (HeadState tx)
-deriving anyclass instance (IsTx tx, FromJSON (ChainStateType tx)) => FromJSON (HeadState tx)
+deriving stock instance (IsTx tx, Eq tx, Eq (TxIdType tx), Eq (UTxOType tx), Eq (ChainStateType tx)) => Eq (HeadState tx)
+deriving stock instance (IsTx tx, Show tx, Show (UTxOType tx), Show (TxIdType tx), Show (ChainStateType tx)) => Show (HeadState tx)
+deriving anyclass instance (IsTx tx, ToJSON tx, ToJSON (ChainStateType tx), ToJSONKey (TxIdType tx), ToJSON (UTxOType tx), ToJSON (TxIdType tx)) => ToJSON (HeadState tx)
+deriving anyclass instance (IsTx tx, Semigroup (UTxOType tx), Semigroup (TxIdType tx), Ord (TxIdType tx), FromJSON tx, FromJSON (UTxOType tx), FromJSON (TxIdType tx), FromJSONKey (TxIdType tx), FromJSON (ChainStateType tx)) => FromJSON (HeadState tx)
 
 -- | Update the chain state in any 'HeadState'.
 setChainState :: ChainStateType tx -> HeadState tx -> HeadState tx
@@ -95,10 +96,10 @@ data InitialState tx = InitialState
   }
   deriving stock (Generic)
 
-deriving stock instance (IsTx tx, Eq (ChainStateType tx)) => Eq (InitialState tx)
-deriving stock instance (IsTx tx, Show (ChainStateType tx)) => Show (InitialState tx)
-deriving anyclass instance (IsTx tx, ToJSON (ChainStateType tx)) => ToJSON (InitialState tx)
-deriving anyclass instance (IsTx tx, FromJSON (ChainStateType tx)) => FromJSON (InitialState tx)
+deriving stock instance (IsTx tx, Eq (UTxOType tx), Eq (ChainStateType tx)) => Eq (InitialState tx)
+deriving stock instance (IsTx tx, Show (UTxOType tx), Show (ChainStateType tx)) => Show (InitialState tx)
+deriving anyclass instance (IsTx tx, ToJSON (UTxOType tx), ToJSON (ChainStateType tx)) => ToJSON (InitialState tx)
+deriving anyclass instance (IsTx tx, FromJSON (UTxOType tx), FromJSON (ChainStateType tx)) => FromJSON (InitialState tx)
 
 instance (ArbitraryIsTx tx, Arbitrary (ChainStateType tx)) => Arbitrary (InitialState tx) where
   arbitrary = do
@@ -128,12 +129,12 @@ data OpenState tx = OpenState
   }
   deriving stock (Generic)
 
-deriving stock instance (IsTx tx, Eq (ChainStateType tx)) => Eq (OpenState tx)
-deriving stock instance (IsTx tx, Show (ChainStateType tx)) => Show (OpenState tx)
-deriving anyclass instance (IsTx tx, ToJSON (ChainStateType tx)) => ToJSON (OpenState tx)
-deriving anyclass instance (IsTx tx, FromJSON (ChainStateType tx)) => FromJSON (OpenState tx)
+deriving stock instance (IsTx tx, Eq tx, Eq (TxIdType tx), Eq (UTxOType tx), Eq (ChainStateType tx)) => Eq (OpenState tx)
+deriving stock instance (IsTx tx, Show tx, Show (TxIdType tx), Show (UTxOType tx), Show (ChainStateType tx)) => Show (OpenState tx)
+deriving anyclass instance (IsTx tx, ToJSON tx, ToJSON (TxIdType tx), ToJSONKey (TxIdType tx), ToJSON (UTxOType tx), ToJSON (ChainStateType tx)) => ToJSON (OpenState tx)
+deriving anyclass instance (IsTx tx, Semigroup (TxIdType tx), Semigroup (UTxOType tx), Ord (TxIdType tx), FromJSON (UTxOType tx), FromJSON tx, FromJSONKey (TxIdType tx), FromJSON (TxIdType tx), FromJSON (ChainStateType tx)) => FromJSON (OpenState tx)
 
-instance (ArbitraryIsTx tx, Arbitrary (ChainStateType tx)) => Arbitrary (OpenState tx) where
+instance (Ord (TxIdType tx), Monoid (UTxOType tx), ArbitraryIsTx tx, Arbitrary (ChainStateType tx)) => Arbitrary (OpenState tx) where
   arbitrary =
     OpenState
       <$> arbitrary
@@ -168,12 +169,12 @@ data CoordinatedHeadState tx = CoordinatedHeadState
   }
   deriving stock (Generic)
 
-deriving stock instance IsTx tx => Eq (CoordinatedHeadState tx)
-deriving stock instance IsTx tx => Show (CoordinatedHeadState tx)
-deriving anyclass instance IsTx tx => ToJSON (CoordinatedHeadState tx)
-deriving anyclass instance IsTx tx => FromJSON (CoordinatedHeadState tx)
+deriving stock instance (Eq tx, Eq (UTxOType tx), Eq (TxIdType tx), IsTx tx) => Eq (CoordinatedHeadState tx)
+deriving stock instance (Show tx, Show (UTxOType tx), Show (TxIdType tx), IsTx tx) => Show (CoordinatedHeadState tx)
+deriving anyclass instance (ToJSON tx, ToJSONKey (TxIdType tx), ToJSON (UTxOType tx), ToJSON (TxIdType tx), IsTx tx) => ToJSON (CoordinatedHeadState tx)
+deriving anyclass instance (Semigroup (UTxOType tx), FromJSON tx, Ord (TxIdType tx), Semigroup (TxIdType tx), FromJSONKey (TxIdType tx), FromJSON (UTxOType tx), FromJSON (TxIdType tx), IsTx tx) => FromJSON (CoordinatedHeadState tx)
 
-instance ArbitraryIsTx tx => Arbitrary (CoordinatedHeadState tx) where
+instance (Monoid (UTxOType tx), Ord (TxIdType tx), ArbitraryIsTx tx) => Arbitrary (CoordinatedHeadState tx) where
   arbitrary = genericArbitrary
 
 -- | Data structure to help in tracking whether we have seen or requested a
@@ -196,13 +197,13 @@ data SeenSnapshot tx
       }
   deriving stock (Generic)
 
-instance ArbitraryIsTx tx => Arbitrary (SeenSnapshot tx) where
+instance (Monoid (UTxOType tx), ArbitraryIsTx tx) => Arbitrary (SeenSnapshot tx) where
   arbitrary = genericArbitrary
 
-deriving stock instance IsTx tx => Eq (SeenSnapshot tx)
-deriving stock instance IsTx tx => Show (SeenSnapshot tx)
-deriving anyclass instance IsTx tx => ToJSON (SeenSnapshot tx)
-deriving anyclass instance IsTx tx => FromJSON (SeenSnapshot tx)
+deriving stock instance (Eq tx, Eq (UTxOType tx), IsTx tx) => Eq (SeenSnapshot tx)
+deriving stock instance (Show tx, Show (UTxOType tx), IsTx tx) => Show (SeenSnapshot tx)
+deriving anyclass instance (ToJSON tx, ToJSON (UTxOType tx), IsTx tx) => ToJSON (SeenSnapshot tx)
+deriving anyclass instance (Semigroup (UTxOType tx), FromJSON tx, FromJSON (UTxOType tx), IsTx tx) => FromJSON (SeenSnapshot tx)
 
 -- | Get the last seen snapshot number given a 'SeenSnapshot'.
 seenSnapshotNumber :: SeenSnapshot tx -> SnapshotNumber
@@ -230,12 +231,12 @@ data ClosedState tx = ClosedState
   }
   deriving stock (Generic)
 
-deriving stock instance (IsTx tx, Eq (ChainStateType tx)) => Eq (ClosedState tx)
-deriving stock instance (IsTx tx, Show (ChainStateType tx)) => Show (ClosedState tx)
-deriving anyclass instance (IsTx tx, ToJSON (ChainStateType tx)) => ToJSON (ClosedState tx)
-deriving anyclass instance (IsTx tx, FromJSON (ChainStateType tx)) => FromJSON (ClosedState tx)
+deriving stock instance (IsTx tx, Eq tx, Eq (UTxOType tx), Eq (ChainStateType tx)) => Eq (ClosedState tx)
+deriving stock instance (IsTx tx, Show tx, Show (UTxOType tx), Show (ChainStateType tx)) => Show (ClosedState tx)
+deriving anyclass instance (IsTx tx, ToJSON tx, ToJSON (UTxOType tx), ToJSON (ChainStateType tx)) => ToJSON (ClosedState tx)
+deriving anyclass instance (IsTx tx, Semigroup (UTxOType tx), FromJSON tx, FromJSON (UTxOType tx), FromJSON (ChainStateType tx)) => FromJSON (ClosedState tx)
 
-instance (ArbitraryIsTx tx, Arbitrary (ChainStateType tx)) => Arbitrary (ClosedState tx) where
+instance (ArbitraryIsTx tx, Monoid (UTxOType tx), Arbitrary (ChainStateType tx)) => Arbitrary (ClosedState tx) where
   arbitrary =
     ClosedState
       <$> arbitrary
