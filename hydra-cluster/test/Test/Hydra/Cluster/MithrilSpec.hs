@@ -16,6 +16,7 @@ spec :: Spec
 spec = parallel $ do
   describe "downloadLatestSnapshotTo" $
     forEachKnownNetwork "invokes mithril-client correctly" $ \network -> do
+      pendingWith "client is outdated"
       (tracer, getTraces) <- captureTracer "MithrilSpec"
       withTempDir ("mithril-download-" <> show network) $ \tmpDir -> do
         let dbPath = tmpDir </> "db"
