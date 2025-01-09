@@ -5,6 +5,9 @@ module Hydra.Cluster.Scenarios where
 
 import Hydra.Prelude
 import Test.Hydra.Prelude
+import Polysemy (Member, Members, Sem, Embed, embed)
+import Polysemy.Input (Input) 
+import qualified Polysemy.Input as P
 
 import Cardano.Api.UTxO qualified as UTxO
 import CardanoClient (
@@ -1133,21 +1136,30 @@ respendUTxO client sk delay = do
 
 -- | Refuel given 'Actor' with given 'Lovelace' if current marked UTxO is below that amount.
 refuelIfNeeded ::
-  Tracer IO EndToEndLog ->
-  RunningNode ->
+  Members [Embed IO
+         , Input (Tracer IO EndToEndLog)
+         , Input RunningNode] r =>
   Actor ->
   Coin ->
-  IO ()
-refuelIfNeeded tracer node actor amount = do
-  (actorVk, _) <- keysFor actor
-  existingUtxo <- queryUTxOFor networkId nodeSocket QueryTip actorVk
-  traceWith tracer $ StartingFunds{actor = actorName actor, utxo = existingUtxo}
+  Sem r ()
+refuelIfNeeded actor amount = do
+  (actorVk, _) <- embed $ keysFor actor
+  node@RunningNode{networkId, nodeSocket} <- P.input @RunningNode
+  existingUtxo <- embed $ queryUTxOFor networkId nodeSocket QueryTip actorVk
+  trace' $ StartingFunds{actor = actorName actor, utxo = existingUtxo}
   let currentBalance = selectLovelace $ balance @Tx existingUtxo
   when (currentBalance < amount) $ do
-    utxo <- seedFromFaucet node actorVk amount (contramap FromFaucet tracer)
-    traceWith tracer $ RefueledFunds{actor = actorName actor, refuelingAmount = amount, utxo}
- where
-  RunningNode{networkId, nodeSocket} = node
+    tracer <- P.input @(Tracer IO EndToEndLog)
+    utxo <- embed $ seedFromFaucet node actorVk amount (contramap FromFaucet tracer)
+    trace' $ RefueledFunds{actor = actorName actor, refuelingAmount = amount, utxo}
+
+trace' :: forall r a. Member (Input (Tracer IO a)) r
+           => a
+           -> Sem r ()
+trace' x = do
+  t <- P.input @(Tracer IO a)
+  embed @IO $ traceWith t x
+
 
 -- | Return the remaining funds to the faucet
 returnFundsToFaucet ::

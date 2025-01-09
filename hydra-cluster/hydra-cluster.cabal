@@ -105,6 +105,8 @@ library
     , lens-aeson
     , optparse-applicative
     , process
+    , polysemy
+    , polysemy-plugin
     , QuickCheck
     , req
     , temporary
@@ -177,6 +179,8 @@ test-suite tests
     , lens
     , lens-aeson
     , process
+    , polysemy
+    , polysemy-plugin
     , QuickCheck
     , stm
     , text
