@@ -41,3 +41,6 @@ benchmarks: True
 
 -- Always show detailed output for tests
 test-show-details: direct
+
+profiling: True
+profiling-detail: late-toplevel
