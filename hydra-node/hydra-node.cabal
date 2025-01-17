@@ -83,6 +83,7 @@ library
     Hydra.Network.Heartbeat
     Hydra.Network.Message
     Hydra.Network.Ouroboros
+    Hydra.Network.Ouroboros.Codec
     Hydra.Network.Ouroboros.Client
     Hydra.Network.Ouroboros.Server
     Hydra.Network.Ouroboros.Type

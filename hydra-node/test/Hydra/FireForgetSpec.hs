@@ -15,7 +15,7 @@ import Test.Util (shouldBe, shouldRunInSim)
 spec :: Spec
 spec =
   it "client can send 'Hail Hydra!' to server" $ do
-    (res, _) <- shouldRunInSim $ do
+    ((res, _), _) <- shouldRunInSim $ do
       (channelA, channelB) <- createConnectedChannels
       server <- newServer
       concurrently
