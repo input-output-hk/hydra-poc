@@ -58,9 +58,6 @@ import Hydra.Network.Ouroboros.Type (
   Message (..),
   codecFireForget,
  )
-import Network.Mux.Compat (
-  WithMuxBearer (..),
- )
 import Network.Socket (
   AddrInfo (addrAddress),
   NameInfoFlag (..),
@@ -72,9 +69,10 @@ import Network.Socket (
   getPeerName,
  )
 import Network.TypedProtocol.Codec (
-  AnyMessageAndAgency (..),
+  AnyMessage (..),
  )
-import Network.TypedProtocol.Pipelined ()
+
+import Network.Mux (Mode (..), WithBearer (..))
 import Ouroboros.Network.Driver.Simple (
   TraceSendRecv (..),
  )
@@ -94,7 +92,6 @@ import Ouroboros.Network.Mux (
   MiniProtocolCb,
   MiniProtocolLimits (..),
   MiniProtocolNum (MiniProtocolNum),
-  MuxMode (..),
   OuroborosApplication (..),
   OuroborosApplicationWithMinimalCtx,
   RunMiniProtocol (..),
@@ -107,6 +104,7 @@ import Ouroboros.Network.Server.Socket (AcceptedConnectionsLimit (AcceptedConnec
 import Ouroboros.Network.Snocket (makeSocketBearer, socketSnocket)
 import Ouroboros.Network.Socket (
   AcceptConnectionsPolicyTrace,
+  ConnectToArgs (..),
   ConnectionId (..),
   HandshakeCallbacks (..),
   NetworkConnectTracers (..),
@@ -236,15 +234,18 @@ withOuroborosNetwork
       IO ()
     actualConnect iomgr newBroadcastChannel app sn = do
       chan <- newBroadcastChannel
-      connectToNodeSocket
-        iomgr
-        (codecHandshake hydraVersionedProtocolCodec)
-        noTimeLimitsHandshake
-        hydraVersionedProtocolDataCodec
-        networkConnectTracers
-        (HandshakeCallbacks acceptableVersion queryVersion)
-        (simpleSingletonVersions protocolVersion MkHydraVersionedProtocolData (app chan))
-        sn
+      void $
+        connectToNodeSocket
+          iomgr
+          ConnectToArgs
+            { ctaHandshakeCodec = codecHandshake hydraVersionedProtocolCodec
+            , ctaHandshakeTimeLimits = noTimeLimitsHandshake
+            , ctaVersionDataCodec = hydraVersionedProtocolDataCodec
+            , ctaConnectTracers = networkConnectTracers
+            , ctaHandshakeCallbacks = HandshakeCallbacks acceptableVersion queryVersion
+            }
+          (simpleSingletonVersions protocolVersion MkHydraVersionedProtocolData (app chan))
+          sn
      where
       networkConnectTracers :: NetworkConnectTracers SockAddr HydraVersionedProtocolNumber
       networkConnectTracers =
@@ -376,7 +377,7 @@ data TraceOuroborosNetwork msg
   = TraceSubscriptions (WithIPList (SubscriptionTrace SockAddr))
   | TraceErrorPolicy (WithAddr SockAddr ErrorPolicyTrace)
   | TraceAcceptPolicy AcceptConnectionsPolicyTrace
-  | TraceHandshake (WithMuxBearer (ConnectionId SockAddr) (TraceSendRecv (Handshake HydraVersionedProtocolNumber CBOR.Term)))
+  | TraceHandshake (WithBearer (ConnectionId SockAddr) (TraceSendRecv (Handshake HydraVersionedProtocolNumber CBOR.Term)))
   | TraceSendRecv (TraceSendRecv (FireForget msg))
 
 -- NOTE: cardano-node would have orphan ToObject instances for most of these
@@ -415,16 +416,16 @@ encodeWithAddr (WithAddr addr ev) =
     ]
 
 encodeTraceSendRecvHandshake ::
-  WithMuxBearer (ConnectionId SockAddr) (TraceSendRecv (Handshake HydraVersionedProtocolNumber CBOR.Term)) ->
+  WithBearer (ConnectionId SockAddr) (TraceSendRecv (Handshake HydraVersionedProtocolNumber CBOR.Term)) ->
   [Aeson.Pair]
 encodeTraceSendRecvHandshake = \case
-  WithMuxBearer peerId (TraceSendMsg (AnyMessageAndAgency agency msg)) ->
+  WithBearer peerId (TraceSendMsg (AnyMessageAndAgency agency msg)) ->
     [ "event" .= ("send" :: String)
     , "agency" .= (show agency :: Text)
     , "peer" .= (show peerId :: Text)
     ]
       ++ encodeMsg msg
-  WithMuxBearer peerId (TraceRecvMsg (AnyMessageAndAgency agency msg)) ->
+  WithBearer peerId (TraceRecvMsg (AnyMessageAndAgency agency msg)) ->
     [ "event" .= ("receive" :: Text)
     , "agency" .= (show agency :: Text)
     , "peer" .= (show peerId :: Text)
